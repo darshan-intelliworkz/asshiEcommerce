@@ -1,0 +1,92 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class OrderReturnRequest extends Model
+{
+    protected $table = 'order_return_requests';
+
+    protected $fillable = [
+
+    
+        'order_id',
+        'return_type',
+        'reason',
+        'customer_comment',
+        'images',
+        'status',
+        'shiprocket_return_order_id',
+        'shiprocket_shipment_id',
+        'awb_code',
+        'courier_name',
+        'pickup_token_number',
+        'pickup_scheduled_date',
+        'pickup_status',
+        'current_tracking_status',
+        'tracking_data',
+        'refund_status',
+        'refund_amount',
+        'refund_id',
+        'exchange_order_id',
+        'create_return_payload',
+        'create_return_response',
+        'awb_payload',
+        'awb_response',
+        'pickup_payload',
+        'pickup_response',
+        'tracking_payload',
+        'refund_payload',
+        'error_response',
+        'approved_at',
+        'pickup_completed_at',
+        'refunded_at',
+    ];
+
+    protected $casts = [
+
+       
+
+        'images' => 'array',
+
+        'create_return_payload' => 'array',
+
+        'create_return_response' => 'array',
+
+        'awb_payload' => 'array',
+
+        'awb_response' => 'array',
+
+        'pickup_payload' => 'array',
+
+        'pickup_response' => 'array',
+
+        'tracking_payload' => 'array',
+
+        'refund_payload' => 'array',
+
+        'error_response' => 'array',
+
+        'pickup_scheduled_date' => 'datetime',
+
+        'approved_at' => 'datetime',
+
+        'pickup_completed_at' => 'datetime',
+
+        'refunded_at' => 'datetime',
+    ];
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function exchangeOrder()
+    {
+        return $this->belongsTo(
+            Order::class,
+            'exchange_order_id'
+        );
+    }
+}

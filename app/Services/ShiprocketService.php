@@ -1,0 +1,587 @@
+<?php
+ 
+namespace App\Services;
+use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use App\Models\Order;
+
+class ShiprocketService
+{
+    protected $client;
+    protected $url;
+
+    public function __construct(Client $client)
+    {
+        $this->client = $client;
+        $this->url = env('SHIPROCKET_API_URL');
+    }
+
+    // Helper function to fetch the token (cached for 24 hours)
+    public function getAuthToken()
+    {
+        // Check if token exists in cache and is still valid
+        $token = Cache::get('shiprocket_token');
+
+        if (!$token) {
+            // If token is not cached or expired, generate a new token
+            $body = json_encode([
+                'email' => env('SHIPROCKET_EMAIL'),
+                'password' => env('SHIPROCKET_PASSWORD'),
+            ]);
+
+            try {
+                $response = $this->client->post($this->url.'/auth/login', [
+                    'headers' => ['Content-Type' => 'application/json'],
+                    'body' => $body,
+                ]);
+                $responseBody = $response->getBody()->getContents();
+                $data = json_decode($responseBody, true);
+                if (isset($data['token']) && !empty($data['token'])) {
+                    // Store token in cache for 24 hours
+                    Cache::put('shiprocket_token', $data['token'], now()->addHours(24));
+                    return $data['token'];
+                } else {
+                    throw new \Exception('Token generation failed');
+                }
+            } catch (\GuzzleHttp\Exception\RequestException $e) {
+                // Handle API errors gracefully
+                throw new \Exception('Failed to fetch token: ' . $e->getMessage());
+            }
+        }
+
+        return $token;
+    }
+
+    // Function to check the serviceability
+    public function checkServiceability($pincode, $isCod)
+    {
+        try {
+            // Get the auth token
+            $authToken = $this->getAuthToken();
+
+            // Make the API request to check serviceability
+            $response = $this->client->get($this->url.'/courier/serviceability/', [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $authToken,
+                ],
+                'query' => [
+                    'pickup_postcode' => env('SHIPROCKET_PICKUP_PINCODE'),
+                    'delivery_postcode' => $pincode,
+                    'cod' => $isCod,
+                    'weight' => env('SHIPROCKET_PICKUP_WEIGHT'),
+                ],
+            ]);
+
+            $body = $response->getBody()->getContents();
+            $data = json_decode($body);
+
+            if (json_last_error() === JSON_ERROR_NONE && $response->getStatusCode() == 200) {
+                return response()->json([
+                    'status' => $response->getStatusCode(),
+                    'data' => $data
+                ]);
+            } else {
+                return response()->json([
+                    'status' => $response->getStatusCode(),
+                    'raw_response' => $data
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            // Catch token-related or other errors
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function createShipmentOrder($order)
+    {
+        try {
+            $authToken = $this->getAuthToken();
+            // Fetch order products
+            $orderItems = $order->cart_info;
+            $items = [];
+            foreach ($orderItems as $item) {
+                $size = null;
+                if (!empty($item->size_price)) {
+                    $sizeData = json_decode($item->size_price, true);
+                    $size = $sizeData['size'] ?? null;
+                }
+                
+                $colorName = null;
+                $productName = $item->product->title ?? 'Product';
+                if(isset($item->color_id) && $item->color_id != null){
+                    $colorName = optional($item->color)->color_name;
+                }
+                if(isset($colorName) && $colorName != null){
+                    if($size != null){
+                        $productName .= ' | Color:'.$colorName.') | Size:'.$size;
+                    }else{
+                        $productName .= ' | Color:'.$colorName.')';
+                    }
+                }
+                $items[] = [
+                    'name' => $productName,
+                    'sku' => 'SKU-' . $item->product_id.'_'.$size,
+                    'units' => $item->quantity,
+                    'selling_price' => $item->price + $item->gst_amt,
+                    'discount' => 0,
+                    'tax' => $item->gst_percent ?? 0,
+                ];
+            }
+            $payload = [
+                'order_id' => $order->order_number,
+                'order_date' => $order->created_at->format('Y-m-d H:i'),
+                'pickup_location' => 'work',
+                'billing_customer_name' => $order->first_name,
+                'billing_last_name' => $order->last_name,
+                'billing_address' => $order->address1,
+                'billing_address_2' => $order->address2,
+                'billing_city' => $order->city ?? 'Delhi',
+                'billing_pincode' => $order->post_code,
+                'billing_state' => $order->state ?? 'Delhi',
+                'billing_country' => $order->country,
+                'billing_email' => $order->email,
+                'billing_phone' => $order->phone,
+                'shipping_is_billing' => true,
+                'order_items' => $items,
+                'payment_method' => $order->payment_method === 'cod' ? 'COD' : 'Prepaid',
+                'shipping_charges' => (int) $order->shiping_charges,
+                'giftwrap_charges' => 0,
+                'transaction_charges' => 0,
+                'total_discount' => (int) $order->coupon,
+                'sub_total' => (int) $order->sub_total + $order->total_gst_amount,
+                //'sub_total' => isset($order->coupon) && $order->coupon != NULL ? (int) $order->sub_total - (int) $order->coupon : (int) $order->sub_total,
+                // Dummy dimensions (required)
+                'length' => 10,
+                'breadth' => 15,
+                'height' => 20,
+                'weight' => 0.5
+            ];
+            $response = $this->client->post($this->url.'/orders/create/adhoc',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $authToken,
+                        'Content-Type'  => 'application/json',
+                    ],
+                    'json' => $payload
+                ]
+            );
+            $data = json_decode($response->getBody()->getContents(), true);
+            
+            return response()->json([
+                'status' => true,
+                'shiprocket_response' => $data
+            ]);
+
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+
+            return response()->json([
+                'status' => false,
+                'error' => $e->getResponse()
+                    ? json_decode($e->getResponse()->getBody()->getContents(), true)
+                    : $e->getMessage()
+            ], 500);
+        } 
+    }
+
+    public function assignCourierAwb($shipmentId){
+        if(isset($shipmentId) && $shipmentId != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/courier/assign/awb', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'shipment_id' => $shipmentId
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Assign AWB Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
+            ], 500);
+        }
+    }
+
+    public function generateLabel($shipmentId){
+        if(isset($shipmentId) && $shipmentId != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/courier/generate/label', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'shipment_id' => [(int) $shipmentId]
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Generate Label Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
+            ], 500);
+        }
+    } 
+
+    public function shipmentPickupRequest($shipmentId){
+        if(isset($shipmentId) && $shipmentId != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/courier/generate/pickup', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'shipment_id' => [(int) $shipmentId]
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Shipment Pickup Request Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
+            ], 500);
+        }
+    }
+
+    public function generateManifeast($shipmentId){
+        if(isset($shipmentId) && $shipmentId != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/manifests/generate', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'shipment_id' => [(int) $shipmentId]
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Menifeast Generate Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
+            ], 500);
+        }
+    }
+    
+    public function generateInvoice($orderIds){
+        if(isset($orderIds) && $orderIds != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/orders/print/invoice', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'ids' => [(int) $orderIds]
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Invoice Generate Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
+            ], 500);
+        }
+    }
+
+    public function getShipmentStatus($shipmentId)
+    {
+        try {
+            $authToken = $this->getAuthToken();
+
+            $response = $this->client->get($this->url.'/shipments/'.$shipmentId, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $authToken,
+                ]
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+            return response()->json([
+                'status' => true,
+                'shiprocket_response' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("SHIPMENT STATUS ERROR: " . $e->getMessage());
+
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+
+    public function createReturnOrder($orderId)
+    {
+        try {
+            $order = Order::with([
+                'cart_info.product',
+                'cart_info.color'
+            ])->findOrFail($orderId);
+
+            $authToken = $this->getAuthToken();
+
+            $items = [];
+
+            foreach ($order->cart_info as $item) {
+
+                $size = null;
+
+                if (!empty($item->size_price)) {
+                    $sizeData = json_decode($item->size_price, true);
+                    $size = $sizeData['size'] ?? null;
+                }
+
+                $colorName = optional($item->color)->color_name;
+
+                $productName = $item->product->title ?? 'Product';
+
+                if ($colorName) {
+                    $productName .= ' | Color: ' . $colorName;
+                }
+
+                if ($size) {
+                    $productName .= ' | Size: ' . $size;
+                }
+
+                $items[] = [
+                    "name" => $productName,
+                    "sku" => 'RETURN_' . $item->product_id,
+                    "units" => $item->quantity,
+                    "selling_price" => $item->price,
+                    "discount" => 0,
+                    "tax" => $item->gst_percent ?? 0,
+                ];
+            }
+
+
+            $payload = [
+                "order_id" => 'RETURN_' . $order->order_number,
+                "order_date" => now()->format('Y-m-d H:i'),
+
+                // PICKUP FROM CUSTOMER
+                "pickup_customer_name" => $order->first_name . ' ' . $order->last_name,
+                "pickup_address" => $order->address1,
+                "pickup_address_2" => $order->address2,
+                "pickup_city" => $order->city,
+                "pickup_state" => $order->state,
+                "pickup_country" => $order->country ?? 'India',
+                "pickup_pincode" => $order->post_code,
+                "pickup_email" => $order->email,
+                "pickup_phone" => $order->phone,
+
+                // YOUR WAREHOUSE
+                "shipping_customer_name" => env('STORE_NAME'),
+                "shipping_address" => env('STORE_ADDRESS'),
+                "shipping_city" => env('STORE_CITY'),
+                "shipping_state" => env('STORE_STATE'),
+                "shipping_country" => "India",
+                "shipping_pincode" => env('STORE_PINCODE'),
+                "shipping_email" => env('STORE_EMAIL'),
+                "shipping_phone" => env('STORE_PHONE'),
+
+                // ITEMS
+                "order_items" => $items,
+
+                "payment_method" => "Prepaid",
+                "sub_total" => $order->total_amount,
+
+                // DIMENSIONS
+                "length" => 10,
+                "breadth" => 10,
+                "height" => 10,
+                "weight" => 0.5
+            ];
+
+            Log::info('RETURN PAYLOAD', $payload);
+
+            /*
+            |--------------------------------------------------------------------------
+            | API CALL
+            |--------------------------------------------------------------------------
+            */
+
+            $response = $this->client->post(
+                $this->url . '/orders/create/return',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $authToken,
+                        'Content-Type'  => 'application/json',
+                    ],
+                    'json' => $payload
+                ]
+            );
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            Log::info('RETURN RESPONSE', $data);
+
+            return response()->json([
+                'status' => true,
+                'shiprocket_response' => $data
+            ]);
+
+        } catch (\Exception $e) {
+
+            Log::error('RETURN ORDER ERROR: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function assignReturnCourierAWB($shipmentId)
+    {
+        try {
+
+            /*
+            |--------------------------------------------------------------------------
+            | AUTH TOKEN
+            |--------------------------------------------------------------------------
+            */
+
+            $authToken = $this->getAuthToken();
+
+            /*
+            |--------------------------------------------------------------------------
+            | ASSIGN COURIER + AWB
+            |--------------------------------------------------------------------------
+            */
+
+            $response = $this->client->post(
+                $this->url . '/courier/assign/awb',
+                [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'shipment_id' => $shipmentId
+                    ]
+                ]
+            );
+
+            $data = json_decode(
+                $response->getBody()->getContents(),
+                true
+            );
+
+            Log::info('RETURN AWB RESPONSE', $data);
+
+            /*
+            |--------------------------------------------------------------------------
+            | SUCCESS CHECK
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                isset($data['awb_assign_status']) &&
+                $data['awb_assign_status'] == 1
+            ) {
+
+                return response()->json([
+                    'status' => true,
+                    'message' => 'AWB assigned successfully',
+                    'awb_number' => $data['response']['awb_code'] ?? null,
+                    'courier_name' => $data['response']['courier_name'] ?? null,
+                    'shipment_id' => $shipmentId,
+                    'shiprocket_response' => $data
+                ]);
+            }
+
+            return response()->json([
+                'status' => false,
+                'message' => 'AWB assignment failed',
+                'shiprocket_response' => $data
+            ]);
+
+        } catch (\Exception $e) {
+
+            Log::error('RETURN AWB ERROR: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+}
