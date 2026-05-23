@@ -19,6 +19,7 @@ class CreateProductsTable extends Migration
             $table->string('slug')->unique();
             $table->text('summary');
             $table->longText('description')->nullable();
+            $table->text('product_features')->nullable();
             $table->text('photo');
             $table->integer('stock')->default(1);
             $table->string('size')->default('M')->nullable();
