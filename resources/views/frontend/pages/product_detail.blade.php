@@ -391,11 +391,11 @@
 		</div>
 	</section>
 
-	<section class="shop single">
+	<section class="shop single pt-0 pb-5">
 	<div class="container">
 		<div class="row">
 			<div class="col-12">
-				<div class="product-info">
+				<div class="product-info mt-0">
 					<div class="nav-main">
 						<ul class="nav nav-tabs" id="myTab" role="tablist">
 							<li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#description" role="tab">Description</a></li>
@@ -462,6 +462,249 @@
 			</div>
 		</div>
 	</div>
+	</section>
+
+	<section class="shop single pt-0 pb-5">
+		<div class="container">
+
+<!-- <div class="section-title">
+                        <h2>Product Correction</h2>
+                    </div> -->
+
+<div id="accordion" class="custom-accordion">
+
+  <!-- Item 1 -->
+  <div class="card">
+    <div class="card-header">
+      <button 
+        class="btn btn-link" 
+        data-toggle="collapse" 
+        data-target="#collapseOne">
+
+        <i class="fa fa-arrows-alt accordion-left-icon"></i>
+
+       Size Guide
+
+        <span class="plus-minus">
+          <span class="fa fa-plus"></span>
+          <span class="fa fa-minus"></span>
+        </span>
+
+      </button>
+    </div>
+
+    <div id="collapseOne" class="collapse show" data-parent="#accordion">
+      <div class="card-body">
+       <ul>
+		<li>Choose a raincoat that is one size larger than your regular shirt size for a comfortable fit.</li>
+		<li>If you plan to wear a backpack inside the raincoat, we recommend choosing two sizes larger. (Do not Put this on APT, APN, JLPC, RLPC code)</li>
+	   </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item 2 -->
+  <div class="card">
+    <div class="card-header">
+      <button 
+        class="btn btn-link collapsed" 
+        data-toggle="collapse" 
+        data-target="#collapseTwo">
+
+        <i class="fa fa-truck accordion-left-icon"></i>
+
+       Shipping Instructions
+
+        <span class="plus-minus">
+          <i class=" fa fa-plus"></i>
+          <i class="fa fa-minus"></i>
+        </span>
+
+      </button>
+    </div>
+
+    <div id="collapseTwo" class="collapse" data-parent="#accordion">
+      <div class="card-body">
+          <ul>
+			<li>Orders are usually processed within 24–48 hours after confirmation.</li>
+			<li>Delivery timelines may vary depending on your location and courier availability</li>
+			<li>Please provide a complete and accurate shipping address with a valid contact number.</li>
+			<li>Delivery timelines may be affected due to bad weather conditions or unforeseen courier delays.</li>
+			<li>Once your order is shipped, tracking details will be shared via SMS or email.</li>
+		  </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item 3 -->
+  <div class="card">
+	<div class="card-header">
+	  <button 
+		class="btn btn-link collapsed" 
+		data-toggle="collapse" 
+		data-target="#collapseThree">
+
+		<i class="fa fa-exchange accordion-left-icon"></i>
+
+	   15-Day Easy Exchange
+
+		<span class="plus-minus">
+		  <i class="fa fa-plus"></i>
+		  <i class="fa fa-minus"></i>
+		</span>
+
+	  </button>
+	</div>
+
+	<div id="collapseThree" class="collapse" data-parent="#accordion">
+	  <div class="card-body">
+		  <ul>
+			<li>Free Exchange Available.</li>
+			<li>Request an exchange within 15 days of delivery.</li>
+			<li>Click here to exchange your product.(Link Paste here)</li>
+			<li>Exchange is not applicable on free products or promotional items.</li>
+			<li>Size and color exchanges are subject to stock availability.</li>
+			<li>Only one-time exchange is allowed per order.</li>
+			<li>If you receive a wrong product, please share an unboxing video of the package for verification.</li>
+			
+		  </ul>
+	  </div>
+	</div>
+
+</div>
+
+<!-- Item 4 -->
+<div class="card">
+	<div class="card-header">
+	  <button 
+		class="btn btn-link collapsed" 
+		data-toggle="collapse" 
+		data-target="#collapseFour">
+
+		<i class="fa fa-refresh accordion-left-icon"></i>
+
+	   7-Day Easy Return & Refund
+
+		<span class="plus-minus">
+		  <i class="fa fa-plus"></i>
+		  <i class="fa fa-minus"></i>
+		</span>
+
+	  </button>
+	</div>
+
+	<div id="collapseFour" class="collapse" data-parent="#accordion">
+	  <div class="card-body">
+		  <ul>
+			<li>We offer a 7-day return policy for eligible products.</li>
+			<li>Click here to initiate your return request(Paste Return Link)</li>
+			<li>To be eligible for a return, the product must be unused and in its original condition and packaging.</li>
+			<li>Returns cannot be initiated before the product is delivered.</li>
+			<li>Refunds will be processed to the original payment method after the returned item is received and verified.</li>
+			<li>For Cash on Delivery (COD) orders, customers will be required to provide bank account details for refund processing.</li>
+			<li>Refunds are usually initiated within 2–4 working days after receiving the returned product.</li>
+			<li>If you receive a wrong product, please share an unboxing video of the package for verification purposes.</li>
+			<li>In case your pin code is not serviceable for reverse pickup, you may be required to self-ship the product.</li>
+			<li>Please do not accept the package if it appears tampered with or damaged.</li>
+			<li>Do not share the OTP (One-Time Password) with the delivery partner unless you have received the package</li>
+			<li>To cancel an order, please contact us through the “Contact Us” page. Our team will respond within 24 hours.</li>
+
+		  </ul>
+	  </div>
+	</div>
+</div>
+
+<!-- Item 5 -->
+<div class="card">
+	<div class="card-header">
+	  <button 
+		class="btn btn-link collapsed" 
+		data-toggle="collapse" 
+		data-target="#collapseFive">
+
+		<i class="fa fa-tint accordion-left-icon"></i>
+
+	   Wash & Care Instructions
+
+		<span class="plus-minus">
+		  <i class="fa fa-plus"></i>
+		  <i class="fa fa-minus"></i>
+		</span>
+
+	  </button>
+	</div>
+
+	<div id="collapseFive" class="collapse" data-parent="#accordion">
+	  <div class="card-body">
+		  <ul>
+			<li>Clean the product using running water.</li>
+			<li>Do not iron the garment.</li>
+			<li>Do not tumble dry.</li>
+		  </ul>
+	  </div>
+	</div>
+</div>
+
+<!-- Item 6 -->
+<div class="card">
+	<div class="card-header">
+	  <button 
+		class="btn btn-link collapsed" 
+		data-toggle="collapse" 
+		data-target="#collapseSix">
+
+		<i class="fa fa-globe accordion-left-icon"></i>
+
+	 Country Origin
+
+		<span class="plus-minus">
+		  <i class="fa fa-plus"></i>
+		  <i class="fa fa-minus"></i>
+		</span>
+
+	  </button>
+	</div>
+
+	<div id="collapseSix" class="collapse" data-parent="#accordion">
+	  <div class="card-body">
+		  <ul>
+			<li>India</li>
+	  </div>
+	</div>
+</div>
+
+
+<!-- Item 7 -->
+<div class="card">
+	<div class="card-header">
+	  <button 
+		class="btn btn-link collapsed" 
+		data-toggle="collapse" 
+		data-target="#collapseSeven">
+
+		<i class="fa fa-industry accordion-left-icon"></i>
+
+	   Manufactured and Marketed By
+
+		<span class="plus-minus">
+		  <i class="fa fa-plus"></i>
+		  <i class="fa fa-minus"></i>
+		</span>
+
+	  </button>
+	</div>
+
+	<div id="collapseSeven" class="collapse" data-parent="#accordion">
+	  <div class="card-body">
+		  <ul>
+			<li>NEW AASHI RAINWEAR, 843/2, NIDHI IND ESTATE, RAKANPUR, Gandhinagar, Gujarat, 382721</li>
+		  </ul>
+	  </div>
+	</div>
+</div>
+
+
+		</div>
 	</section>
 
 	{{-- REVIEW SECTION --}}

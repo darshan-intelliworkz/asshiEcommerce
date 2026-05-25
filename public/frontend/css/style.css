@@ -5017,4 +5017,76 @@ Version:1.0
 }
 
 /*pagination css*/
+
+
+/* product-details accordion css */
+
+.custom-accordion .card{
+    border:1px solid #e5e7eb;
+    overflow:hidden;
+    margin-bottom:16px;
+  }
+
+  .custom-accordion .card-header{
+    padding:0;
+    background:#fff;
+    border:none;
+  }
+
+  .custom-accordion .btn-link{
+    width:100%;
+    text-align:left;
+    text-decoration:none !important;
+    padding:18px 22px;
+    font-size:16px;
+    font-weight:600;
+    color:#2c2d3f;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:#fff;
+	border:none;
+	outline:none;
+  }
+
+  .custom-accordion .btn-link:hover{
+    text-decoration:none;
+  }
+
+  .custom-accordion .btn-link:not(.collapsed){
+    background:#5db845;
+    color:#fff;
+  }
+
+  .accordion-left-icon{
+    font-size:18px;
+    color:#61B33B;
+  }
+
+  .custom-accordion .btn-link:not(.collapsed) .accordion-left-icon{
+    color:#fff;
+  }
+
+  .plus-minus{
+    margin-left:auto;
+  }
+
+  .plus-minus .fa-minus{
+    display:none;
+  }
+
+  .custom-accordion .btn-link:not(.collapsed) .fa-plus{
+    display:none;
+  }
+
+  .custom-accordion .btn-link:not(.collapsed) .fa-minus{
+    display:inline-block;
+  }
+
+  .card-body{
+    font-size:14px;
+    line-height:28px;
+    /* color:#6b7280; */
+    padding:22px;
+  }
 		
