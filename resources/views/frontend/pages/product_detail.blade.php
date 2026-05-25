@@ -411,6 +411,8 @@
 											<p>{!! ($product_detail->description) !!}</p>
 											 <div id="accordion" class="custom-accordion mt-4">
       <!-- Item 1 -->
+	  @php $productName = strtolower($product_detail->product_code); @endphp
+	  @if(!in_array($productName, ['apt poncho', 'apn poncho', 'jlpc-101', 'rlpc-104']))
       <div class="card">
          <div class="card-header">
             <button 
@@ -434,6 +436,8 @@
             </div>
          </div>
       </div>
+	  @endif
+
       <!-- Item 2 -->
       <div class="card">
          <div class="card-header">
@@ -481,7 +485,7 @@
                <ul>
                   <li>Free Exchange Available.</li>
                   <li>Request an exchange within 15 days of delivery.</li>
-                  <li>Click here to exchange your product.(Link Paste here)</li>
+                  {{-- <li>Click here to exchange your product.(Link Paste here)</li> --}}
                   <li>Exchange is not applicable on free products or promotional items.</li>
                   <li>Size and color exchanges are subject to stock availability.</li>
                   <li>Only one-time exchange is allowed per order.</li>
@@ -509,7 +513,7 @@
             <div class="card-body">
                <ul>
                   <li>We offer a 7-day return policy for eligible products.</li>
-                  <li>Click here to initiate your return request(Paste Return Link)</li>
+                  {{-- <li>Click here to initiate your return request(Paste Return Link)</li> --}}
                   <li>To be eligible for a return, the product must be unused and in its original condition and packaging.</li>
                   <li>Returns cannot be initiated before the product is delivered.</li>
                   <li>Refunds will be processed to the original payment method after the returned item is received and verified.</li>
