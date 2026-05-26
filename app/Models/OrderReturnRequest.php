@@ -9,8 +9,6 @@ class OrderReturnRequest extends Model
     protected $table = 'order_return_requests';
 
     protected $fillable = [
-
-    
         'order_id',
         'return_type',
         'reason',

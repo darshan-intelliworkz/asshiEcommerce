@@ -462,6 +462,8 @@ class ShiprocketService
                 "payment_method" => "Prepaid",
                 "sub_total" => $order->total_amount,
 
+                "reason" =>'Arrived too late',
+
                 // DIMENSIONS
                 "length" => 10,
                 "breadth" => 10,
@@ -512,19 +514,7 @@ class ShiprocketService
     {
         try {
 
-            /*
-            |--------------------------------------------------------------------------
-            | AUTH TOKEN
-            |--------------------------------------------------------------------------
-            */
-
             $authToken = $this->getAuthToken();
-
-            /*
-            |--------------------------------------------------------------------------
-            | ASSIGN COURIER + AWB
-            |--------------------------------------------------------------------------
-            */
 
             $response = $this->client->post(
                 $this->url . '/courier/assign/awb',
@@ -545,12 +535,6 @@ class ShiprocketService
             );
 
             Log::info('RETURN AWB RESPONSE', $data);
-
-            /*
-            |--------------------------------------------------------------------------
-            | SUCCESS CHECK
-            |--------------------------------------------------------------------------
-            */
 
             if (
                 isset($data['awb_assign_status']) &&
@@ -584,4 +568,53 @@ class ShiprocketService
         }
     }
 
+    public function trackReturnShipment($awbCode)
+    {
+        try {
+
+            $authToken = $this->getAuthToken();
+
+            $response = $this->client->get(
+
+                $this->url . '/courier/track/awb/' . $awbCode,
+
+                [
+                    'headers' => [
+                        'Authorization' =>
+                            'Bearer ' . $authToken,
+
+                        'Content-Type' =>
+                            'application/json',
+                    ]
+                ]
+            );
+
+            $data = json_decode(
+                $response->getBody()->getContents(),
+                true
+            );
+
+            Log::info(
+                'RETURN TRACKING RESPONSE',
+                $data
+            );
+
+            return response()->json([
+                'status' => true,
+                'shiprocket_response' => $data
+            ]);
+
+        } catch (\Exception $e) {
+
+            Log::error(
+                'RETURN TRACKING ERROR: ' .
+                $e->getMessage()
+            );
+
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
