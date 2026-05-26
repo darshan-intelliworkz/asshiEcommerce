@@ -15,8 +15,11 @@ use App\Notifications\StatusNotification;
 use App\Http\Controllers\DelhiveryController;
 use App\Models\ShipmentDetails;
 use App\Http\Controllers\RazorpayController;
+use App\Models\OrderReturnRequest;
 use App\Services\ShiprocketService;
 use GuzzleHttp\Client;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
@@ -32,22 +35,7 @@ class OrderController extends Controller
         return view('backend.order.index')->with('orders',$orders);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
+   
     public function store(Request $request , DelhiveryController $delhivery) 
     {
         $this->validate($request,[
@@ -223,12 +211,7 @@ class OrderController extends Controller
         return redirect()->route('home');
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
+   
     public function show($id)
     {
         $order=Order::find($id);
@@ -420,23 +403,101 @@ class OrderController extends Controller
         return view('frontend.pages.order_details', compact('order'));
     }
     
+
+    // dont remove without confrimation darshan
+    // public function orderUpdate(Request $request){
+    //     $order = Order::find($request->id);
+
+    //     // for testing purpose only, to cancel order without payment integration
+    //     $client = new \GuzzleHttp\Client(); 
+    //     $shiprocketService = new ShiprocketService(new Client());
+    //     $retrunorder = $shiprocketService->createReturnOrder($request->id);
+    //     $retrunorderData = $retrunorder->getData(true);
+    //     Log::info('Return Order Response: ', $retrunorderData);
+    //     if(isset($retrunorderData['status']) && $retrunorderData['status'] === true){
+    //         $awbResponse = $shiprocketService->assignCourierAwb($retrunorderData['shiprocket_response']['shipment_id']);
+    //         $awbResponseData = $awbResponse->getData(true);
+    //         Log::info('Return Order AWB Response: ', $awbResponseData);
+    //          if (isset($awbResponseData['awb_assign_status']) && $awbResponseData['awb_assign_status'] == 1) {
+    //              Log::info('Return order AWB assigned successfully for Order ID: ' . $request->id);
+    //          } else {
+    //              Log::error('Failed to assign AWB for return order of Order ID: ' . $request->id, ['response' => $awbResponseData]);
+    //          }
+    //     } else {
+    //         Log::error('Failed to create return order for Order ID: ' . $request->id, ['response' => $retrunorderData]);
+    //     }
+    //     return true;
+
+    //     if(!$order){
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Order not found'
+    //         ]);
+    //     }
+
+    //     if($order->payment_method == 'cod'){
+    //         $order->status = 'cancel';
+    //         $order->save();
+
+    //         return response()->json([
+    //             'status' => true,
+    //             'message' => 'Order cancelled successfully'
+    //         ]);
+    //     }
+    //     else if($order->payment_method == 'razorpay' || $order->payment_status == 'paid'){
+    //         $razorpayController = new RazorpayController();
+    //         $refundResponse = $razorpayController->refundPayment($order->id);
+    //         $refundResponseData = $refundResponse->getData(true);
+
+    //         if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
+    //             $order->status = 'cancel';
+    //             $order->payment_status = 'refunded';
+    //             $order->save();
+
+    //             return response()->json([
+    //                 'status' => true,
+    //                 'message' => 'Order cancelled and refund initiated successfully'
+    //             ]);
+    //         } else {
+    //             return response()->json([
+    //                 'status' => false,
+    //                 'message' => 'Refund failed, order cancellation unsuccessful'
+    //             ]);
+    //         }
+    //     }
+    //     else{
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Invalid payment method for cancellation'
+    //         ]);
+    //     }
+        
+    // }
+
     public function orderUpdate(Request $request){
         $order = Order::find($request->id);
-
-        // for testing purpose only, to cancel order without payment integration
-        $client = new \GuzzleHttp\Client(); 
-        $shiprocketService = new ShiprocketService(new Client());
-        $retrunorder = $shiprocketService->createReturnOrder($request->id);
-        $retrunorderData = $retrunorder->getData(true);
-        Log::info('Return Order Response: ', $retrunorderData);
-        return true;
-
         if(!$order){
             return response()->json([
                 'status' => false,
                 'message' => 'Order not found'
             ]);
         }
+
+        if($request->status == 'Cancell'){
+            return $this->cancelOrder($request->id);
+        } else if($request->status == 'Return') {
+            return $this->returnOrder($request->id);
+        } else {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid status update request'
+             ]);
+        }
+        
+    }
+
+    public function cancelOrder($orderId){
+        $order = Order::find($orderId);
 
         if($order->payment_method == 'cod'){
             $order->status = 'cancel';
@@ -474,6 +535,323 @@ class OrderController extends Controller
                 'message' => 'Invalid payment method for cancellation'
             ]);
         }
+    }
+
+    // public function returnOrder($orderId){
+    //     Log::info('Initiating return process for Order ID: ' . $orderId);
+    //     $order = Order::find($orderId);
+    //     if(!$order){
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Order not found'
+    //         ]);
+    //     }
+
+    //     $returnOrderRequest  = OrderReturnRequest::where('order_id', $orderId)->first();
+    //         if(!$returnOrderRequest){
+    //             return response()->json([
+    //                 'status' => false,
+    //                 'message' => 'Return request not found for this order'
+    //             ]);
+    //         }
         
+
+    //     $shiprocketService = new ShiprocketService(new Client());
+    //     $returnOrderResponse = $shiprocketService->createReturnOrder($orderId);
+    //     $returnOrderResponseData = $returnOrderResponse->getData(true);
+    //     Log::info('Return Order Response: ', $returnOrderResponseData);
+
+    //     if(isset($returnOrderResponseData['status']) && $returnOrderResponseData['status'] === true){
+    //         $returnOrderRequest->refund_status = 'initiated';
+    //         $returnOrderRequest->shiprocket_return_order_id = $returnOrderResponseData['shiprocket_response']['order_id'] ?? NULL;
+    //         $returnOrderRequest->shiprocket_shipment_id = $returnOrderResponseData['shiprocket_response']['shipment_id'] ?? NULL;
+    //         $returnOrderRequest->create_return_payload = json_encode($returnOrderResponseData ?? []);
+    //         $returnOrderRequest->save();
+
+    //         $awbResponse = $shiprocketService->assignCourierAwb($returnOrderResponseData['shiprocket_response']['shipment_id']);
+    //         $awbResponseData = $awbResponse->getData(true);
+    //         Log::info('Return Order AWB Response: ', $awbResponseData);
+
+    
+    //         if (isset($awbResponseData['status']) && $awbResponseData['status'] === true && isset($awbResponseData['shiprocket_response']['awb_assign_status']) && $awbResponseData['shiprocket_response']['awb_assign_status'] == 1) {
+    //             Log::info('Return order AWB assigned successfully for Order ID: ' . $orderId);
+    //             $returnOrderRequest->awb_code = $awbResponseData['shiprocket_response']['response']['data']['awb_code'] ?? '';
+    //             $returnOrderRequest->courier_name = $awbResponseData['shiprocket_response']['response']['data']['courier_name'] ?? '';
+    //             $returnOrderRequest->awb_payload = json_encode($awbResponseData ?? []);
+    //             $returnOrderRequest->save();
+
+
+    //             $trackResponse = $shiprocketService->trackReturnShipment($awbResponseData['shiprocket_response']['response']['data']['awb_code']);
+    //             $trackResponseData = $trackResponse->getData(true);
+    //             if (isset($trackResponseData['status']) && $trackResponseData['status'] === true) {
+    //                 Log::info('Return Order Tracking Response: ', $trackResponseData);
+    //                 $returnOrderRequest->current_tracking_status = $trackResponseData['shiprocket_response']['response']['data']['current_status'] ?? '';
+    //                 $returnOrderRequest->tracking_data = json_encode($trackResponseData ?? []);
+    //             }else {
+    //                 Log::error('Failed to track return shipment for Order ID: ' . $orderId, ['response' => $trackResponseData]);
+    //             }
+
+    //         } else {
+    //             Log::error('Failed to assign AWB for return order of Order ID: ' . $orderId, ['response' => $awbResponseData]);
+    //         }
+    //         return response()->json([
+    //             'status' => true,
+    //             'message' => 'Return order created successfully'
+    //         ]);
+    //     } else {
+    //         return response()->json([
+    //             'status' => false,
+    //             'message' => 'Failed to create return order'
+    //         ]);
+    //     }
+    // }
+
+
+    public function returnExchange(Request $request)
+    {
+        $request->validate([
+            'order_id'      => 'required|exists:orders,id',
+            'request_type'  => 'required',
+            'reason'        => 'required|string',
+            'notes'         => 'nullable|string',
+            'images.*'      => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ]);
+
+        $order = Order::find($request->order_id);
+
+        if (!$order) {
+            request()->session()->flash('error', 'Order not found');
+            return back();
+        }
+
+        $uploadedImages = [];
+
+        if ($request->hasFile('images')) {
+            $destinationPath = public_path('return_order_images');
+
+            if (!File::exists($destinationPath)) {
+                File::makeDirectory($destinationPath, 0755, true);
+            }
+
+            foreach ($request->file('images') as $image) {
+                $imageName = time() . '_' . rand(1111,9999) . '.' . $image->getClientOriginalExtension();
+                $image->move($destinationPath, $imageName);
+                $uploadedImages[] = 'return_order_images/' . $imageName;
+            }
+        }
+        OrderReturnRequest::create([
+            'order_id'          => $order->id,
+            'return_type'       => $request->request_type,
+            'reason'            => $request->reason,
+            'customer_comment'  => $request->notes,
+            'images'            => json_encode($uploadedImages),
+            'status'            => 'pending',
+        ]);
+
+        $order->status = 'return request';
+        $order->save();
+        if($request->request_type == 'return'){
+            $this->returnOrder($order->id);
+        }
+        request()->session()->flash(
+            'success',
+            'Your return/exchange request has been submitted successfully'
+        );
+
+        return back();
+    }
+
+
+    public function returnOrder($orderId)
+    {
+        DB::beginTransaction();
+
+        try {
+
+            Log::info('Initiating return process for Order ID: ' . $orderId);
+
+            $order = Order::find($orderId);
+
+            if (!$order) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Order not found'
+                ]);
+            }
+
+            $returnRequest = OrderReturnRequest::where('order_id', $orderId)->first();
+
+            if (!$returnRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Return request not found'
+                ]);
+            }
+
+            if (!empty($returnRequest->shiprocket_return_order_id)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Return already processed'
+                ]);
+            }
+
+            $shiprocketService = new ShiprocketService(new Client());
+            $returnResponse = $shiprocketService->createReturnOrder($orderId);
+            $returnData = $returnResponse->getData(true);
+            Log::info('Return Order Response', $returnData);
+
+            if (
+                !isset($returnData['status']) ||
+                $returnData['status'] !== true
+            ) {
+
+                $returnRequest->update([
+                    'status' => 'failed',
+                    'error_response' => $returnData,
+                ]);
+
+                Log::error('Failed to create return order', $returnData);
+
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Failed to create return order'
+                ]);
+            }
+
+            $returnRequest->update([
+
+                'status' => 'approved',
+                'refund_status' => 'initiated',
+                'shiprocket_return_order_id' =>  $returnData['shiprocket_response']['order_id'] ?? null,
+                'shiprocket_shipment_id' => $returnData['shiprocket_response']['shipment_id'] ?? null,
+                'create_return_payload' => [
+                    'order_id' => $orderId
+                ],
+                'create_return_response' => $returnData,
+                'approved_at' => now(),
+            ]);
+
+            $shipmentId = $returnData['shiprocket_response']['shipment_id'] ?? null;
+            $awbResponse = $shiprocketService->assignCourierAwb($shipmentId);
+            $awbData =  $awbResponse->getData(true);
+
+            Log::info('Return Order AWB Response', $awbData);
+
+            if (
+                isset($awbData['status']) &&
+                $awbData['status'] === true &&
+                isset($awbData['shiprocket_response']['awb_assign_status']) &&
+                $awbData['shiprocket_response']['awb_assign_status'] == 1
+            ) {
+
+                $awbInfo = $awbData['shiprocket_response']['response']['data'] ?? [];
+                $returnRequest->update([
+                    'status' => 'awb_assigned',
+                    'awb_code' => $awbInfo['awb_code'] ?? '',
+                    'courier_name' => $awbInfo['courier_name'] ?? '',
+                    'pickup_token_number' => $awbInfo['order_id'] ?? '',
+                    'pickup_scheduled_date' => $awbInfo['pickup_scheduled_date'] ?? null,
+                    'pickup_status' => 'scheduled',
+                    'awb_payload' => [
+                        'shipment_id' => $shipmentId
+                    ],
+                    'awb_response' => $awbData,
+                ]);
+
+                Log::info(
+                    'Return order AWB assigned successfully for Order ID: ' . $orderId
+                );
+
+                $trackResponse = $shiprocketService->trackReturnShipment($awbInfo['awb_code']);
+                $trackData = $trackResponse->getData(true);
+                Log::info('Return Order Tracking Response', $trackData);
+            
+
+                if (
+                    isset($trackData['status']) &&
+                    $trackData['status'] === true
+                ) {
+
+                    $tracking = $trackData['shiprocket_response']['tracking_data'] ?? [];
+                    $shipmentTrack = $tracking['shipment_track'][0] ?? [];
+                    $currentStatus = $shipmentTrack['current_status'] ?? '';
+
+                    $systemStatus = match (strtolower($currentStatus)) {
+                        'pickup generated' => 'pickup_generated',
+                        'picked up' => 'picked_up',
+                        'delivered' => 'received',
+                        default => 'processing',
+                    };
+
+                    $returnRequest->update([
+                        'status' => $systemStatus,
+                        'current_tracking_status' => $currentStatus,
+                        'pickup_completed_at' =>
+                            !empty($shipmentTrack['pickup_date'])
+                                ? $shipmentTrack['pickup_date']
+                                : null,
+                        'tracking_payload' => [
+                            'awb_code' => $awbInfo['awb_code']
+                        ],
+                        'tracking_data' => $trackData,
+                    ]);
+
+                } else {
+                    $returnRequest->update([
+                        'status' => 'tracking_failed',
+                        'error_response' => $trackData,
+                    ]);
+
+                    Log::error(
+                        'Tracking failed for Order ID: ' . $orderId,
+                        $trackData
+                    );
+                }
+
+            } else {
+
+                $returnRequest->update([
+                    'status' => 'awb_failed',
+                    'error_response' => $awbData,
+                ]);
+
+                Log::error(
+                    'Failed to assign AWB for Order ID: ' . $orderId,
+                    $awbData
+                );
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Return order created successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if (isset($returnRequest)) {
+                $returnRequest->update([
+                    'status' => 'failed',
+                    'error_response' => [
+                        'message' => $e->getMessage(),
+                        'line' => $e->getLine(),
+                        'file' => $e->getFile(),
+                    ]
+                ]);
+            }
+
+            Log::error('RETURN ORDER ERROR', [
+                'order_id' => $orderId,
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage()
+            ]);
+        }
     }
 }

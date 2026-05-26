@@ -180,115 +180,7 @@ class RazorpayController extends Controller
         return redirect()->route('myorders')->with('success', 'Payment Failed!');
     }
 
-    // public function refundPayment($paymentId)
-    // {
-    //     Log::info('Initiating refund for payment ID: ' . $paymentId);
-    //     $payment = PaymentOrders::where('order_id', $paymentId)->firstOrFail();
-    //     Log::info('Payment record found testinig: ' . $payment->amount . ' with Razorpay Payment ID: ' . $payment->razorpay_payment_id);
-    //     if (!$payment->razorpay_payment_id) {
-    //         return response()->json([
-    //             'status' => false,
-    //             'message' => 'No Razorpay payment ID found for this order.'
-    //         ]);
-    //     }
-
-    //     // // capture the payment before refunding
-    //     // $captureResponse = $this->capturePayment($payment->razorpay_payment_id, $payment->amount);
-    //     // if (!$captureResponse->getData()->status) {
-    //     //     return response()->json([
-    //     //         'status' => false,
-    //     //         'message' => 'Payment capture failed. Refund cannot be processed.',
-    //     //         'data' => $captureResponse->getData()
-    //     //     ]);
-    //     // }
-
-
-
-    //     // 🔥 Check payment status first
-    //     $paymentDetails = $this->getPayment($payment->razorpay_payment_id);
-
-    //     Log::info('Payment Details razerpay get status : ' . json_encode($paymentDetails));
-
-    //     if (!isset($paymentDetails['status']) || $paymentDetails['status'] !== 'captured') {
-    //         return response()->json([
-    //             'status' => false,
-    //             'message' => 'Payment is not captured yet',
-    //             'data' => $paymentDetails
-    //         ]);
-    //     }
-
-
-    //     $paymentId = $payment->razorpay_payment_id;
-
-    //     $key    = env('RAZORPAY_KEY');
-    //     $secret = env('RAZORPAY_SECRET');
-
-    //     $fields = [
-    //         'amount' => $paymentDetails['amount'],
-    //         'speed' => 'normal',
-    //         'notes[reason]' => 'Customer requested refund'
-    //     ];
-
-    //     $ch = curl_init();
-
-    //     curl_setopt($ch, CURLOPT_URL, "https://api.razorpay.com/v1/payments/".$paymentId."/refund");
-    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    //     curl_setopt($ch, CURLOPT_POST, true);
-    //     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields)); // 🔥 IMPORTANT FIX
-    //     curl_setopt($ch, CURLOPT_USERPWD, $key . ":" . $secret);
-
-    //     $result = curl_exec($ch);
-
-    //     Log::info('Refund API Response: ' . $result);
-
-    //     if (curl_errno($ch)) {
-
-    //         Log::error('Curl Error: ' . curl_error($ch));
-
-    //         return response()->json([
-    //             'status' => false,
-    //             'message' => curl_error($ch)
-    //         ]);
-    //     }
-
-    //     curl_close($ch);
-
-    //     $response = json_decode($result, true);
-
-    //     if(isset($response['id']))
-    //     {
-    //         // Refund Success
-
-    //         PaymentRefund::create([
-    //             'order_id' => $payment->order_id,
-    //             'payment_id' => $payment->id,
-    //             'razorpay_payment_id' => $payment->razorpay_payment_id,
-    //             'razorpay_refund_id' => $response['id'],
-    //             'refund_amount' => $payment->amount,
-    //             'refund_status' => 'processed',
-    //             'refund_response' => json_encode($response),
-    //             'refund_reason' => 'Customer requested refund',
-    //             'refunded_at' => now(),
-    //         ]);
-
-    //         $payment->update([
-    //             'payment_status' => 'refunded'
-    //         ]);
-
-    //         return response()->json([
-    //             'status' => true,
-    //             'message' => 'Refund successful',
-    //             'data' => $response
-    //         ]);
-    //     }
-    //     else
-    //     {
-    //         return response()->json([
-    //             'status' => false,
-    //             'message' => $response['error']['description'] ?? 'Refund failed'
-    //         ]);
-    //     }
-    // }
+   
 
     public function refundPayment($paymentId)
     {
@@ -451,23 +343,6 @@ class RazorpayController extends Controller
             'data' => $response
         ]);
     }
-
-    // private function getPayment($paymentId)
-    // {
-    //     $key    = env('RAZORPAY_KEY');
-    //     $secret = env('RAZORPAY_SECRET');
-
-    //     $ch = curl_init();
-
-    //     curl_setopt($ch, CURLOPT_URL, "https://api.razorpay.com/v1/payments/" . $paymentId);
-    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    //     curl_setopt($ch, CURLOPT_USERPWD, $key . ":" . $secret);
-
-    //     $result = curl_exec($ch);
-    //     curl_close($ch);
-
-    //     return json_decode($result, true);
-    // }
 
     private function getPayment($paymentId)
     {

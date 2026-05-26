@@ -40,10 +40,33 @@
                 </div>
 
                 <div class="d-flex flex-column">
+                     @php
+                        use Carbon\Carbon;
+
+                        $deliveredDate = Carbon::parse($order->updated_at); // or delivered_at if you have that column
+                        $returnExpiryDate = $deliveredDate->copy()->addDays(7);
+                    @endphp
+
                     @if($order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
                     @elseif($order->status == 'delivered')
-                        <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Return')">Request Return / Exchange</button>
+                        @if(now()->lessThanOrEqualTo($returnExpiryDate))
+                            <button class="btn btn-danger" type="button"
+                                onclick="Updateorder({{$order->id}} , 'Return')">
+                                Request Return / Exchange
+                            </button>
+
+                            <small class="text-muted mt-1">
+                                Return available till {{ $returnExpiryDate->format('d M Y') }}
+                            </small>
+
+                        @else
+
+                            <button class="btn btn-secondary" type="button" disabled>
+                                Return Period Expired
+                            </button>
+
+                        @endif
                     @endif
                 </div>
 
@@ -295,140 +318,107 @@
     </div>
 
     {{-- create a modal flow for return/exchange --}}
-    <!-- Return / Exchange Modal -->
-    <div class="modal fade" id="returnExchangeModal" tabindex="-1" role="dialog" aria-labelledby="returnExchangeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-            <div class="modal-content custom-return-modal">
 
-                <!-- Header -->
-                <div class="modal-header border-0">
-                    <div>
-                        <h4 class="modal-title mb-1" id="returnExchangeModalLabel">
-                            Request Return / Exchange
-                        </h4>
-                        <p class="mb-0 text-muted">
-                            Submit your request with reason and product images
-                        </p>
+        <!-- Return / Exchange Modal -->
+        <div class="modal fade" id="returnExchangeModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:700px; margin:30px auto;">
+                <div class="modal-content" style="border:none; border-radius:20px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+
+                    <!-- ====== HEADER ====== -->
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:26px 32px 20px; border-bottom:1px solid #f0f0f0;">
+                        <div>
+                            <p style="margin:0 0 4px 0; font-size:11px; font-weight:600; color:#999; letter-spacing:0.1em; text-transform:uppercase;">
+                                Order #{{$order->order_number}}
+                            </p>
+                            <h5 style="margin:0 0 5px 0; font-size:22px; font-weight:700; color:#1a1a1a;">
+                                Request Return / Exchange
+                            </h5>
+                            <p style="margin:0; font-size:13px; color:#999;">
+                                Submit your request with reason and product images
+                            </p>
+                        </div>
+                        <button type="button" data-dismiss="modal" aria-label="Close"
+                            style="width:38px; height:38px; border-radius:50%; border:1px solid #e8e8e8; background:#f7f7f7; font-size:20px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#555; padding:0; margin:0;">
+                            &times;
+                        </button>
                     </div>
 
-                    <button type="button" class="close close_btn" data-dismiss="modal" aria-label="Close">
-                        <span>&times;</span>
-                    </button>
-                </div>
-
-                <!-- Body -->
-                <div class="modal-body">
-
-                    <form id="returnExchangeForm" enctype="multipart/form-data">
-
-                        @csrf
-
-                        <input type="hidden" name="order_id" id="return_order_id">
-                        <input type="hidden" name="product_id" id="return_product_id">
-
-                        <div class="row">
+                    <!-- ====== BODY ====== -->
+                    <div style="padding:28px 32px; max-height:68vh; overflow-y:auto;">
+                        <form id="returnExchangeForm" method="POST" action="{{ route('return.exchange') }}" enctype="multipart/form-data">
+                            @csrf
+                            <input type="hidden" name="order_id" id="return_order_id" value="{{$order->id}}">
 
                             <!-- Request Type -->
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">
-                                    Request Type <span class="text-danger">*</span>
+                            <!-- Request Type -->
+                            <div style="margin-bottom:22px; clear:both;">
+                                <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
+                                    Request Type <span style="color:#e53935;">*</span>
                                 </label>
-
-                                <select class="form-control custom-input" name="request_type" id="request_type" required>
-                                    <option value="">Select Request Type</option>
-                                    <option value="return">Return & Refund</option>
-                                    <option value="exchange">Exchange Product</option>
+                                <select name="request_type" id="request_type" required
+                                    style="width:100%; padding:12px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; cursor:pointer; outline:none; display:block;">
+                                    <option value="">Select request type</option>
+                                    <option value="return">Return &amp; Refund</option>
                                 </select>
                             </div>
-
-                            <!-- Exchange Size -->
-                            <div class="col-md-6 mb-3 d-none" id="exchange_size_section">
-                                <label class="form-label">
-                                    Select New Size
-                                </label>
-
-                                <select class="form-control custom-input" name="exchange_size">
-                                    <option value="">Choose Size</option>
-                                    <option value="S">Small</option>
-                                    <option value="M">Medium</option>
-                                    <option value="L">Large</option>
-                                    <option value="XL">XL</option>
-                                </select>
-                            </div>
-
                             <!-- Reason -->
-                            <div class="col-12 mb-3">
-                                <label class="form-label">
-                                    Reason <span class="text-danger">*</span>
+                            <div style="margin-bottom:22px; clear:both;">
+                                <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
+                                    Reason <span style="color:#e53935;">*</span>
                                 </label>
-
-                                <textarea class="form-control custom-input"
-                                        name="reason"
-                                        rows="4"
-                                        placeholder="Please explain your issue..."
-                                        required></textarea>
+                                <textarea name="reason" rows="5" required
+                                    placeholder="Please explain your issue in detail..."
+                                    style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; resize:vertical; outline:none; font-family:inherit; box-sizing:border-box; line-height:1.5; display:block;"></textarea>
                             </div>
 
-                            <!-- Upload Images -->
-                            <div class="col-12 mb-3">
-                                <label class="form-label">
+                            <!-- Upload -->
+                            <div style="margin-bottom:22px;">
+                                <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Upload Product Images
+                                    <span style="font-weight:400; color:#999;">(optional)</span>
                                 </label>
-
-                                <div class="custom-upload-box">
-                                    <input type="file"
-                                        name="images[]"
-                                        id="returnImages"
-                                        multiple
-                                        accept="image/*">
-
-                                    <div class="upload-content">
-                                        <i class="fa fa-cloud-upload"></i>
-                                        <p>Drag & Drop or Click to Upload</p>
-                                        <small>You can upload multiple images</small>
+                                <div style="position:relative; border:2px dashed #5db844; border-radius:14px; background:#f6fdf3; padding:40px 20px; text-align:center; cursor:pointer;">
+                                    <input type="file" name="images[]" id="returnImages" multiple accept="image/*"
+                                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+                                    <div>
+                                        <i class="fa fa-cloud-upload" style="font-size:44px; color:#5db844; display:block; margin-bottom:12px;"></i>
+                                        <p style="margin:0 0 4px; font-size:15px; font-weight:600; color:#1a1a1a;">Drag &amp; Drop or Click to Upload</p>
+                                        <small style="color:#999; font-size:12px;">JPG, PNG images supported</small>
                                     </div>
                                 </div>
-
                                 <!-- Preview -->
-                                <div class="image-preview-container mt-3"></div>
+                                <div id="imagePreviewContainer" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;"></div>
                             </div>
 
                             <!-- Additional Notes -->
-                            <div class="col-12 mb-3">
-                                <label class="form-label">
+                            <div style="margin-bottom:8px;">
+                                <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Additional Notes
                                 </label>
-
-                                <textarea class="form-control custom-input"
-                                        name="notes"
-                                        rows="2"
-                                        placeholder="Optional notes..."></textarea>
+                                <textarea name="notes" rows="3"
+                                    placeholder="Optional notes..."
+                                    style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; resize:vertical; outline:none; font-family:inherit; box-sizing:border-box;"></textarea>
                             </div>
 
-                        </div>
+                        </form>
+                    </div>
 
-                        <!-- Footer -->
-                        <div class="modal-footer border-0 px-0 pb-0">
-
-                            <button type="button"
-                                    class="btn btn-light cancel-btn"
-                                    data-dismiss="modal">
-                                Cancel
-                            </button>
-
-                            <button type="submit"
-                                    class="btn submit-request-btn">
-                                Submit Request
-                            </button>
-
-                        </div>
-
-                    </form>
+                    <!-- ====== FOOTER ====== -->
+                    <div style="display:flex; justify-content:flex-end; align-items:center; gap:12px; padding:18px 32px 26px; border-top:1px solid #f0f0f0;">
+                        <button type="button" data-dismiss="modal"
+                            style="padding:12px 28px; border-radius:10px; border:1px solid #e0e0e0; background:#f5f5f5; font-size:14px; font-weight:500; color:#555; cursor:pointer; letter-spacing:0.02em;">
+                            Cancel
+                        </button>
+                        <button type="submit" form="returnExchangeForm"
+                            style="padding:12px 28px; border-radius:10px; border:none; background:#5db844; color:#fff; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px; letter-spacing:0.02em;">
+                            <i class="fa fa-paper-plane" style="font-size:13px;"></i>
+                            Submit Request
+                        </button>
+                    </div>
 
                 </div>
             </div>
         </div>
-    </div>
 </div>
 
 <style>
@@ -495,142 +485,7 @@
 @push('styles')
 	<style>
 
-        /* =========================
-        Return Exchange Modal
-        ========================= */
-
-        .custom-return-modal{
-            border-radius: 20px;
-            overflow: hidden;
-            border: none;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        }
-
-        .custom-return-modal .modal-header{
-            padding: 25px 30px 10px;
-        }
-
-        .custom-return-modal .modal-body{
-            padding: 20px 30px 30px;
-        }
-
-        .custom-return-modal h4{
-            font-weight: 700;
-            color: #222;
-        }
-
-        .close_btn{
-            background: #f5f5f5;
-            border: none;
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            font-size: 24px;
-            line-height: 1;
-            transition: 0.3s;
-        }
-
-        .close_btn:hover{
-            background: #e9e9e9;
-        }
-
-        .form-label{
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
-        }
-
-        .custom-input{
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            padding: 12px 15px;
-            box-shadow: none !important;
-            transition: 0.3s;
-        }
-
-        .custom-input:focus{
-            border-color: #5db844;
-        }
-
-        .custom-upload-box{
-            border: 2px dashed #5db844;
-            border-radius: 15px;
-            position: relative;
-            padding: 35px 20px;
-            text-align: center;
-            background: #f8fff6;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .custom-upload-box:hover{
-            background: #f1ffed;
-        }
-
-        .custom-upload-box input[type="file"]{
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .upload-content i{
-            font-size: 42px;
-            color: #5db844;
-            margin-bottom: 12px;
-        }
-
-        .upload-content p{
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #222;
-        }
-
-        .upload-content small{
-            color: #777;
-        }
-
-        .image-preview-container{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .preview-image-box{
-            width: 90px;
-            height: 90px;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid #ddd;
-        }
-
-        .preview-image-box img{
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .submit-request-btn{
-            background: #5db844;
-            color: #fff;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 10px;
-            font-weight: 600;
-            transition: 0.3s;
-        }
-
-        .submit-request-btn:hover{
-            background: #4ca136;
-            color: #fff;
-        }
-
-        .cancel-btn{
-            padding: 12px 25px;
-            border-radius: 10px;
-            font-weight: 500;
-        }
-        /* close for return exchange modal */
+    
 
 		.shop.single .product-des .color ul li a .selected {
 			opacity: 1;
@@ -705,20 +560,22 @@
 @push('scripts')
     <script>
         function Updateorder(id, status){
-            return cancelorder(id);
-            // if(status === 'Cancell'){
-            //     return cancelorder(id);
-            // } else if(status == 'Return') {
-            //     openReturnExchangeModal(id);
-            // } else {
-            //     var result = false;
-            // }
+            // cancelorder(id, status);
+            if(status === 'Cancell'){
+                cancelorder(id);
+            } else if(status == 'Return') {
+                // returnorder(id , status);
+                openReturnExchangeModal(id);
+            } else {
+                var result = false;
+            }
         }
 
         // Open Modal
         function openReturnExchangeModal(orderId)
         {
-            $('#returnExchangeModal').modal('show');
+            $('#returnExchangeModal').modal('show'); // commented now for testing direct return order 
+
         }
 
         // Exchange Size Toggle
@@ -733,39 +590,51 @@
         });
 
         // Image Preview
+        // Image Preview
         $('#returnImages').on('change', function () {
-
-            $('.image-preview-container').html('');
-
-            let files = this.files;
-
-            if(files.length > 0){
-
-                Array.from(files).forEach(file => {
-
-                    let reader = new FileReader();
-
-                    reader.onload = function(e){
-
-                        $('.image-preview-container').append(`
-                            <div class="preview-image-box">
-                                <img src="${e.target.result}">
-                            </div>
-                        `);
-
-                    }
-
-                    reader.readAsDataURL(file);
-
-                });
-
-            }
-
+            $('#imagePreviewContainer').html('');
+            Array.from(this.files).forEach(file => {
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    $('#imagePreviewContainer').append(`
+                        <div style="width:90px; height:90px; border-radius:10px; overflow:hidden; border:1px solid #e0e0e0;">
+                            <img src="${e.target.result}" style="width:100%; height:100%; object-fit:cover;">
+                        </div>
+                    `);
+                };
+                reader.readAsDataURL(file);
+            });
         });
 
 
-        function cancelorder(id){
+        function cancelorder(id , status = 'Cancell'){
             var result = confirm('Are you sure you want to cancel this order?');
+            if(result) {
+                $.ajax({
+                    url: "{{ route('order.update.status') }}",
+                    method: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        id: id,
+                        status: status
+                    },
+                    success: function(response) {
+                        if(response.status) {
+                            alert(response.message);
+                            location.reload();
+                        } else {
+                            alert('Failed to update order. Please try again.');
+                        }
+                    },
+                    error: function() {
+                        alert('An error occurred while updating the order. Please try again.');
+                    }
+                });
+            }
+        }
+
+        function returnorder(id , status = 'Return'){
+            var result = confirm('Are you sure you want to return this order?');
             if(result) {
                 $.ajax({
                     url: "{{ route('order.update.status') }}",

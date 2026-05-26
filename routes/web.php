@@ -19,6 +19,8 @@
     use \UniSharp\LaravelFilemanager\Lfm;
     use App\Models\Color;
     use App\Http\Controllers\RazorpayController;
+use App\Http\Controllers\ShiprocketWebhookController;
+
     /*
     |--------------------------------------------------------------------------
     | Web Routes
@@ -114,7 +116,9 @@
     Route::post('/razorpay/verify', [RazorpayController::class, 'verify'])->name('razorpay.verify');
     Route::post('/razorpay/cancel', [RazorpayController::class, 'cancel'])->name('razorpay.cancel');
     Route::get('/razorpay/failed', [RazorpayController::class, 'failed'])->name('razorpay.failed');
+    Route::post('/order/return-exchange', [OrderController::class, 'returnExchange'])->name('return.exchange')->middleware('user');
     
+
 // Wishlist
     Route::get('/wishlist', function () {
         return view('frontend.pages.wishlist');
