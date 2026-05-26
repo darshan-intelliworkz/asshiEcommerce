@@ -35,6 +35,13 @@
           @enderror
         </div>
 
+        <div class="form-group">
+          <label for="product_features" class="col-form-label">Product Features</label>
+          <textarea class="form-control" id="product_features" name="product_features">{{old('product_features')}}</textarea>
+          @error('product_features')
+          <span class="text-danger">{{$message}}</span>
+          @enderror
+        </div>
 
         <div class="form-group">
           <label for="is_featured">Is Featured</label><br>
@@ -339,8 +346,8 @@
     });
 
     $(document).ready(function() {
-      $('#description').summernote({
-        placeholder: "Write detail description.....",
+      $('#description,#product_features').summernote({
+        placeholder: "Write Details.....",
           tabsize: 2,
           height: 150
       });

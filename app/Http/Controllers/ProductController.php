@@ -135,6 +135,7 @@ class ProductController extends Controller
                 'product_code' => $request->product_code, 
                 'title' => $request->title, 
                 'description' => $request->description, 
+                'product_features' => $request->product_features ?? null,
                 'cat_id' => $request->cat_id, 
                 'child_cat_id' => $request->child_cat_id, 
                 'discount' => $request->discount, 
@@ -154,6 +155,7 @@ class ProductController extends Controller
                 'product_code' => $request->product_code,
                 'title' => $request->title, 
                 'description' => $request->description, 
+                'product_features' => $request->product_features ?? null,
                 'cat_id' => $request->cat_id, 
                 'child_cat_id' => $request->child_cat_id, 
                 'discount' => $request->discount,
@@ -348,6 +350,7 @@ class ProductController extends Controller
             $product->title = $request->title;
             $product->slug = $slug;
             $product->description = $request->description;
+            $product->product_features = $request->product_features ?? null;
             $product->cat_id = $request->cat_id;
             $product->child_cat_id = $request->child_cat_id;
             $product->discount = $request->discount;
@@ -367,6 +370,7 @@ class ProductController extends Controller
             $product->title = $request->title;
             $product->slug = $slug;
             $product->description = $request->description;
+            $product->product_features = $request->product_features ?? null;
             $product->cat_id = $request->cat_id;
             $product->child_cat_id = $request->child_cat_id;
             $product->discount = $request->discount;
@@ -380,35 +384,36 @@ class ProductController extends Controller
             $product->is_featured = $request->input('is_featured',0);
             $product->save();
         }
-        foreach ($request->color_name as $index => $colorName) {
-            // dd($request->color_id);
-            if (isset($request->color_id[$index])) {
-                // Update existing color
-                $color = Color::find($request->color_id[$index]);
-                $color->color_name = $colorName;
-                $color->color_code = $request->color_code[$index];
-                $color->save();
-            } else {
-                // Create new color
-                $color = new Color();
-                $color->product_id = $id;
-                $color->color_name = $colorName;
-                $color->color_code = $request->color_code[$index];
-                $color->save();
-            }
-            if ($request->hasFile("color_images.$index")) {
-                foreach ($request->file("color_images.$index") as $file) {
-                    $filename = time() . $file->getClientOriginalName();
-                    $imagePath = public_path('storage/products');
-                    $file->move($imagePath, $filename);
-                    $image = new ProductImage();
-                    $image->color_id = $color->id;
-                    $image->image = $filename;
-                    $image->save();
+        if(isset($request->color_name)){
+            foreach ($request->color_name as $index => $colorName) {
+                // dd($request->color_id);
+                if (isset($request->color_id[$index])) {
+                    // Update existing color
+                    $color = Color::find($request->color_id[$index]);
+                    $color->color_name = $colorName;
+                    $color->color_code = $request->color_code[$index];
+                    $color->save();
+                } else {
+                    // Create new color
+                    $color = new Color();
+                    $color->product_id = $id;
+                    $color->color_name = $colorName;
+                    $color->color_code = $request->color_code[$index];
+                    $color->save();
+                }
+                if ($request->hasFile("color_images.$index")) {
+                    foreach ($request->file("color_images.$index") as $file) {
+                        $filename = time() . $file->getClientOriginalName();
+                        $imagePath = public_path('storage/products');
+                        $file->move($imagePath, $filename);
+                        $image = new ProductImage();
+                        $image->color_id = $color->id;
+                        $image->image = $filename;
+                        $image->save();
+                    }
                 }
             }
         }
-
         if ($request->deleted_colors) {
             $deletedColorIds = explode(',', $request->deleted_colors);
             foreach ($deletedColorIds as $colorId) {
