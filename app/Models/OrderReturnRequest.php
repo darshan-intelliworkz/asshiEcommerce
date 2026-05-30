@@ -24,6 +24,7 @@ class OrderReturnRequest extends Model
         'pickup_status',
         'current_tracking_status',
         'tracking_data',
+        'upi_id',
         'refund_status',
         'refund_amount',
         'refund_id',

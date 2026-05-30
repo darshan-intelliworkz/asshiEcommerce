@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\RazorpayWebhookController;
 use App\Http\Controllers\ShiprocketWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -21,3 +22,5 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 
 // shiprocket webhook route
 Route::post('/courier/events', [ShiprocketWebhookController::class, 'handle']);
+// Razorpay Payment Gateway 
+Route::post('/razorpay/webhook', [RazorpayWebhookController::class, 'handle']);
