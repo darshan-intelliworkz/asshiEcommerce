@@ -214,7 +214,7 @@ class OrderController extends Controller
    
     public function show($id)
     {
-        $order=Order::find($id);
+        $order=Order::with(['cart.product', 'cart.color', 'returnRequests.cart.product', 'returnRequests.cart.color'])->find($id);
         $shipmentDetails = ShipmentDetails::where('order_id', $id)->first();
         return view('backend.order.show', compact('order', 'shipmentDetails'));
     }
@@ -399,8 +399,14 @@ class OrderController extends Controller
     }
 
     public function orderDetails($id){
-        $order = Order::where('id', $id)->with(['cart', 'cart.color', 'user'])->first();
-        return view('frontend.pages.order_details', compact('order'));
+        $order = Order::where('id', $id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
+        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $activeReturnRequest = $order
+            ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
+            : null;
+        $latestReturnRequest = $order ? $order->returnRequests()->latest()->first() : null;
+
+        return view('frontend.pages.order_details', compact('order', 'activeReturnRequest', 'latestReturnRequest'));
     }
     
 
@@ -484,7 +490,7 @@ class OrderController extends Controller
         }
 
         if($request->status == 'Cancell'){
-            return $this->cancelOrder($request->id);
+            return $this->cancelOrder($order->id);
         } else if($request->status == 'Return') {
             return $this->returnOrder($request->id);
         } else {
@@ -498,42 +504,62 @@ class OrderController extends Controller
 
     public function cancelOrder($orderId){
         $order = Order::find($orderId);
+        $shipmentDetail = ShipmentDetails::where('order_id', $orderId)->first();
+        // // CALL CANCEL ORDER API FOR SHIPROCKET
+        if(isset($order) && isset($shipmentDetail) && $order->payment_method == 'cod' || ($order->payment_method == 'razorpay' && $order->payment_status == 'paid')){
+            $shiprocketService = new ShiprocketService(new Client());
+            $cancelOrder = $shiprocketService->createCancelOrder($shipmentDetail->shipment_order_id);
+            $cancelOrderData = $cancelOrder->getData(true);
+            Log::info('Cancel Order Response: ', $cancelOrderData);
+            if(isset($cancelOrderData['status']) && $cancelOrderData['status'] === true){
 
-        if($order->payment_method == 'cod'){
-            $order->status = 'cancel';
-            $order->save();
+                if($order->payment_method == 'cod'){
+                    $order->status = 'cancel';
+                    $order->save();
 
-            return response()->json([
-                'status' => true,
-                'message' => 'Order cancelled successfully'
-            ]);
-        }
-        else if($order->payment_method == 'razorpay' || $order->payment_status == 'paid'){
-            $razorpayController = new RazorpayController();
-            $refundResponse = $razorpayController->refundPayment($order->id);
-            $refundResponseData = $refundResponse->getData(true);
+                    return response()->json([
+                        'status' => true,
+                        'message' => 'Order cancelled successfully'
+                    ]);
+                }
+                else if($order->payment_method == 'razorpay' && $order->payment_status == 'paid'){
+                    $razorpayController = new RazorpayController();
+                    $refundResponse = $razorpayController->refundPayment($order->id);
+                    $refundResponseData = $refundResponse->getData(true);
 
-            if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
-                $order->status = 'cancel';
-                $order->payment_status = 'refunded';
-                $order->save();
+                    if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
+                        $order->status = 'cancel';
+                        $order->payment_status = 'refunded';
+                        $order->save();
 
-                return response()->json([
-                    'status' => true,
-                    'message' => 'Order cancelled and refund initiated successfully'
-                ]);
-            } else {
+                        return response()->json([
+                            'status' => true,
+                            'message' => 'Order cancelled and refund initiated successfully'
+                        ]);
+                    } else {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'Refund failed, order cancellation unsuccessful'
+                        ]);
+                    }
+                }
+                else{
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Invalid payment method for cancellation'
+                    ]);
+                }
+            }else{
                 return response()->json([
                     'status' => false,
-                    'message' => 'Refund failed, order cancellation unsuccessful'
+                    'message' => 'Something went wrong'
                 ]);
             }
-        }
-        else{
+        }else{
             return response()->json([
-                'status' => false,
-                'message' => 'Invalid payment method for cancellation'
-            ]);
+                    'status' => false,
+                    'message' => 'Something went wrong'
+                ]);
         }
     }
 
@@ -611,16 +637,36 @@ class OrderController extends Controller
     {
         $request->validate([
             'order_id'      => 'required|exists:orders,id',
-            'request_type'  => 'required',
+            'cart_id'       => 'required|exists:carts,id',
+            'request_type'  => 'required|in:return,exchange',
             'reason'        => 'required|string',
             'notes'         => 'nullable|string',
             'images.*'      => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
         $order = Order::find($request->order_id);
-
         if (!$order) {
             request()->session()->flash('error', 'Order not found');
+            return back();
+        }
+
+        $cartItem = Cart::where('id', $request->cart_id)
+            ->where('order_id', $order->id)
+            ->where('user_id', auth()->id())
+            ->first();
+
+        if (!$cartItem) {
+            request()->session()->flash('error', 'Please select a valid product from this order.');
+            return back();
+        }
+
+        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $activeRequest = OrderReturnRequest::where('order_id', $order->id)
+            ->whereNotIn('status', $completedStatuses)
+            ->first();
+
+        if ($activeRequest) {
+            request()->session()->flash('error', 'A return/exchange request is already in progress for this order.');
             return back();
         }
 
@@ -639,19 +685,20 @@ class OrderController extends Controller
                 $uploadedImages[] = 'return_order_images/' . $imageName;
             }
         }
-        OrderReturnRequest::create([
+        $returnRequest = OrderReturnRequest::create([
             'order_id'          => $order->id,
+            'cart_id'           => $cartItem->id,
             'return_type'       => $request->request_type,
             'reason'            => $request->reason,
             'customer_comment'  => $request->notes,
-            'images'            => json_encode($uploadedImages),
+            'images'            => $uploadedImages,
             'status'            => 'pending',
         ]);
 
         $order->status = 'return request';
         $order->save();
         if($request->request_type == 'return'){
-            $this->returnOrder($order->id);
+            $this->returnOrder($order->id, $returnRequest->id);
         }
         request()->session()->flash(
             'success',
@@ -662,7 +709,55 @@ class OrderController extends Controller
     }
 
 
-    public function returnOrder($orderId)
+    public function approveExchangeRequest($id)
+    {
+        $returnRequest = OrderReturnRequest::where('return_type', 'exchange')->findOrFail($id);
+
+        if ($returnRequest->status !== 'pending') {
+            request()->session()->flash('error', 'This exchange request has already been processed.');
+            return back();
+        }
+
+        $response = $this->returnOrder($returnRequest->order_id, $returnRequest->id);
+        $data = $response->getData(true);
+
+        request()->session()->flash(
+            !empty($data['status']) ? 'success' : 'error',
+            !empty($data['status']) ? 'Exchange request approved successfully.' : ($data['message'] ?? 'Failed to approve exchange request.')
+        );
+
+        return back();
+    }
+
+    public function rejectExchangeRequest(Request $request, $id)
+    {
+        $request->validate([
+            'admin_comment' => 'nullable|string|max:1000',
+        ]);
+
+        $returnRequest = OrderReturnRequest::where('return_type', 'exchange')->findOrFail($id);
+
+        if ($returnRequest->status !== 'pending') {
+            request()->session()->flash('error', 'This exchange request has already been processed.');
+            return back();
+        }
+
+        $returnRequest->update([
+            'status' => 'rejected',
+            'admin_comment' => $request->admin_comment,
+            'rejected_at' => now(),
+        ]);
+
+        if ($returnRequest->order) {
+            $returnRequest->order->status = 'delivered';
+            $returnRequest->order->save();
+        }
+
+        request()->session()->flash('success', 'Exchange request rejected successfully.');
+        return back();
+    }
+
+    public function returnOrder($orderId, $returnRequestId = null)
     {
         DB::beginTransaction();
 
@@ -679,7 +774,9 @@ class OrderController extends Controller
                 ]);
             }
 
-            $returnRequest = OrderReturnRequest::where('order_id', $orderId)->first();
+            $returnRequest = $returnRequestId
+                ? OrderReturnRequest::where('order_id', $orderId)->find($returnRequestId)
+                : OrderReturnRequest::where('order_id', $orderId)->latest()->first();
 
             if (!$returnRequest) {
                 return response()->json([
@@ -696,7 +793,7 @@ class OrderController extends Controller
             }
 
             $shiprocketService = new ShiprocketService(new Client());
-            $returnResponse = $shiprocketService->createReturnOrder($orderId);
+            $returnResponse = $shiprocketService->createReturnOrder($orderId, $returnRequest);
             $returnData = $returnResponse->getData(true);
             Log::info('Return Order Response', $returnData);
 

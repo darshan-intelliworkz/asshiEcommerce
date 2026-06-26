@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Product extends Model
 {
     use SoftDeletes;
-    protected $fillable=['title','slug','product_code','description','cat_id','child_cat_id','price','brand_id','amazon_code','discount','status','photo','size','stock','is_featured','condition'];
+    protected $fillable=['title','slug','product_code','description','cat_id','child_cat_id','price','brand_id','amazon_code','discount','status','photo','size','stock','is_featured','condition', 'product_features', 'size_chart'];
 
     public function cat_info(){
         return $this->hasOne('App\Models\Category','id','cat_id');

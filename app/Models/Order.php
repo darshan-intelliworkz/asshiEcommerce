@@ -41,4 +41,9 @@ class Order extends Model
         return $this->hasMany(PaymentRefund::class, 'order_id');
     }
 
+    public function returnRequests()
+    {
+        return $this->hasMany(OrderReturnRequest::class, 'order_id');
+    }
+
 }

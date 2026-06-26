@@ -44,6 +44,14 @@
         </div>
 
         <div class="form-group">
+          <label for="size_chart" class="col-form-label">Size Chart</label>
+          <textarea class="form-control" id="size_chart" name="size_chart">{{old('size_chart')}}</textarea>
+          @error('size_chart')
+          <span class="text-danger">{{$message}}</span>
+          @enderror
+        </div>
+
+        <div class="form-group">
           <label for="is_featured">Is Featured</label><br>
           <input type="checkbox" name='is_featured' id='is_featured' value='1' checked> Yes                        
         </div>
@@ -346,7 +354,7 @@
     });
 
     $(document).ready(function() {
-      $('#description,#product_features').summernote({
+      $('#description,#product_features, #size_chart').summernote({
         placeholder: "Write Details.....",
           tabsize: 2,
           height: 150

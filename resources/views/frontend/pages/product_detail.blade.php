@@ -291,6 +291,11 @@
                         @if($product_detail->sub_cat_info)
                         <p class="cat mt-1">Sub Category :<a href="{{route('product-sub-cat',[$product_detail->cat_info['slug'],$product_detail->sub_cat_info['slug']])}}">{{$product_detail->sub_cat_info['title']}}</a></p>
                         @endif
+                       @if($product_detail->size_chart)
+                          <p class="mt-3"> <a class="View-Size-Chart" href="javascript:void(0);" data-toggle="modal" data-target="#sizeChartModal">
+                                 <b>View Size Chart</b>
+                           </a></p>
+                        @endif
                         <!-- <p class="availability">Stock : @if($product_detail->stock>0)<span class="badge badge-success">{{$product_detail->stock}}</span>@else <span class="badge badge-danger">{{$product_detail->stock}}</span>  @endif</p> -->
                         @if($product_detail->product_features)
                         <p class="cat mb-2"> <b style="font-size:20px;">Features :</b> {!! $product_detail->product_features !!}</p>
@@ -896,9 +901,201 @@
    </div>
 </div>
 <!-- Modal end -->
+
+
+@if($product_detail->size_chart)
+<div class="modal fade size-chart-modal" id="sizeChartModal" tabindex="-1" role="dialog"
+    aria-labelledby="sizeChartModalLabel" aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <!--<h5 class="modal-title" id="sizeChartModalLabel">-->
+                <!--    Size Chart-->
+                <!--</h5>-->
+
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span>&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!--<div class="table-responsive">-->
+                    {!! $product_detail->size_chart !!}
+                <!--</div>-->
+            </div>
+
+        </div>
+    </div>
+</div>
+@endif
+
 @endsection
 @push('styles')
 <style>
+
+
+
+/*modal css start*/
+/* Modal Width */
+#sizeChartModal .modal-dialog {
+    max-width: 900px;
+    width: 95%;
+    margin: 1.75rem auto;
+}
+
+/* Modal Box */
+#sizeChartModal .modal-content {
+    position: relative;
+    border: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Header */
+#sizeChartModal .modal-header {
+    padding: 0px 10px;
+    /*border-bottom: 1px solid #ececec;*/
+    justify-content: flex-end;
+}
+
+/* Close Button */
+#sizeChartModal .close {
+    margin: 0;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    background: #f5f5f5;
+    border-radius: 50%;
+    font-size: 28px;
+    line-height: 36px;
+    text-align: center;
+    opacity: 1;
+    outline: none;
+    box-shadow: none;
+    transition: all 0.3s ease;
+}
+
+#sizeChartModal .close:hover {
+    background: #e9e9e9;
+}
+
+/* Body */
+#sizeChartModal .modal-body {
+    padding: 25px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* Headings */
+#sizeChartModal h4,
+#sizeChartModal h5 {
+    margin: 0 0 20px;
+    font-weight: 700;
+    color: #222;
+    line-height: 1.4;
+}
+
+#sizeChartModal h4 {
+    font-size: 28px;
+}
+
+#sizeChartModal h5 {
+    font-size: 24px;
+}
+
+/* Table */
+#sizeChartModal table {
+    width: 100%;
+    margin-bottom: 30px;
+    border-collapse: collapse;
+}
+
+#sizeChartModal table th,
+#sizeChartModal table td {
+    padding: 14px 16px;
+    text-align: center;
+    border: 1px solid #e5e5e5;
+    vertical-align: middle;
+}
+
+#sizeChartModal table th {
+    background: #f8f8f8;
+    font-weight: 600;
+}
+
+/* List */
+#sizeChartModal ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#sizeChartModal ul li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 12px;
+    line-height: 1.6;
+    color: #444;
+}
+
+#sizeChartModal ul li:last-child {
+    margin-bottom: 0;
+}
+
+#sizeChartModal ul li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 7px;
+    height: 7px;
+    background: #5db845;
+    border-radius: 50%;
+}
+
+/* Mobile */
+@media (max-width: 767px) {
+    
+    #sizeChartModal .modal-header
+    {
+        padding:0px;
+    }
+    #sizeChartModal .modal-dialog {
+        width: calc(100% - 20px);
+        margin: 10px;
+    }
+
+    #sizeChartModal .modal-body {
+        padding: 20px 15px;
+    }
+
+    #sizeChartModal h4 {
+        font-size: 22px;
+    }
+
+    #sizeChartModal h5 {
+        font-size: 20px;
+    }
+
+    #sizeChartModal table th,
+    #sizeChartModal table td {
+        padding: 10px;
+        font-size: 14px;
+        white-space: nowrap;
+    }
+
+    #sizeChartModal ul li {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+}
+
+/*modal css end*/
+
    .shop.single .product-des .color ul li a .selected {
    opacity: 1;
    visibility: visible;
@@ -992,6 +1189,14 @@
    .share-btn.instagram{
    background:#E4405F;
    }
+   
+   .View-Size-Chart
+   {
+       border-bottom:1px solid  rgb(93, 184, 69);
+       margin-top:10px;
+       color: #333;
+   }
+   
 </style>
 @endpush
 @push('scripts')

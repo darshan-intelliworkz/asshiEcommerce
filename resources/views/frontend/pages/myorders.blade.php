@@ -55,7 +55,7 @@
                             {{strtoupper($order->payment_status) ?? '-'}}
                         </td>
                         <td class="text-center">
-                            <a href="{{ route('order.dertails',$order->id )}}" target="_blank" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> View</a>
+                            <a href="{{ route('order.dertails',$order->id )}}" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> View</a>
                         </td>
                     </tr>
                     @endforeach

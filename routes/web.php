@@ -204,6 +204,8 @@ Route::get('/product-list/{slug}/{sub_slug}', [FrontendController::class, 'showP
 
         // Order
         Route::resource('/order', 'OrderController');
+        Route::post('/exchange-request/{id}/approve', [OrderController::class, 'approveExchangeRequest'])->name('exchange-request.approve');
+        Route::post('/exchange-request/{id}/reject', [OrderController::class, 'rejectExchangeRequest'])->name('exchange-request.reject');
         // Shipping
         Route::resource('/shipping', 'ShippingController');
         // Coupon

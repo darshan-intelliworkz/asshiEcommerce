@@ -5,6 +5,7 @@ use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use App\Models\Order;
+use App\Models\OrderReturnRequest;
 
 class ShiprocketService
 {
@@ -387,7 +388,7 @@ class ShiprocketService
     }
 
 
-    public function createReturnOrder($orderId)
+    public function createReturnOrder($orderId, OrderReturnRequest $returnRequest = null)
     {
         try {
             $order = Order::with([
@@ -399,7 +400,11 @@ class ShiprocketService
 
             $items = [];
 
-            foreach ($order->cart_info as $item) {
+            $cartItems = $returnRequest && $returnRequest->cart_id
+                ? $order->cart_info->where('id', $returnRequest->cart_id)
+                : $order->cart_info;
+
+            foreach ($cartItems as $item) {
 
                 $size = null;
 
@@ -432,7 +437,7 @@ class ShiprocketService
 
 
             $payload = [
-                "order_id" => 'RETURN_' . $order->order_number,
+                "order_id" => 'RETURN_' . $order->order_number . ($returnRequest ? '_' . $returnRequest->id : ''),
                 "order_date" => now()->format('Y-m-d H:i'),
 
                 // PICKUP FROM CUSTOMER
@@ -460,9 +465,9 @@ class ShiprocketService
                 "order_items" => $items,
 
                 "payment_method" => "Prepaid",
-                "sub_total" => $order->total_amount,
+                "sub_total" => $cartItems->sum('amount') ?: $cartItems->sum('price'),
 
-                "reason" =>'Arrived too late',
+                "reason" => $returnRequest->reason ?? 'Arrived too late',
 
                 // DIMENSIONS
                 "length" => 10,
@@ -614,6 +619,41 @@ class ShiprocketService
             return response()->json([
                 'status' => false,
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function createCancelOrder($orderId){
+        \Log::info("ORDER ID - " . json_encode($orderId));
+        if(isset($orderId) && $orderId != NULL){
+            try {
+                $authToken = $this->getAuthToken();
+                $response = $this->client->post($this->url.'/orders/cancel', [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => [
+                        'ids' => [(int) $orderId]
+                    ]
+                ]);
+
+                $data = json_decode($response->getBody()->getContents(), true);
+                return response()->json([
+                    'status' => true,
+                    'shiprocket_response' => $data
+                ]);
+            } catch (\Exception $e) {
+                \Log::error("Cancel Order Error: " . $e->getMessage());
+                return response()->json([
+                    'status' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }else{
+            return response()->json([
+                'status' => false,
+                'shiprocket_response' => '',
             ], 500);
         }
     }

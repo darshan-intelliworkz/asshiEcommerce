@@ -47,14 +47,27 @@
                         $returnExpiryDate = $deliveredDate->copy()->addDays(7);
                     @endphp
 
+                    @if(isset($latestReturnRequest) && $latestReturnRequest)
+                        <small class="text-muted mb-1">
+                            {{ ucfirst($latestReturnRequest->return_type) }} request status:
+                            <strong>{{ ucwords(str_replace('_', ' ', $latestReturnRequest->status)) }}</strong>
+                        </small>
+                    @endif
+
                     @if($order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
                     @elseif($order->status == 'delivered')
                         @if(now()->lessThanOrEqualTo($returnExpiryDate))
-                            <button class="btn btn-danger" type="button"
-                                onclick="Updateorder({{$order->id}} , 'Return')">
-                                Request Return / Exchange
-                            </button>
+                            @if(isset($activeReturnRequest) && $activeReturnRequest)
+                                <button class="btn btn-secondary" type="button" disabled>
+                                    Request In Progress
+                                </button>
+                            @else
+                                <button class="btn btn-danger" type="button"
+                                    onclick="Updateorder({{$order->id}} , 'Return')">
+                                    Request Return / Exchange
+                                </button>
+                            @endif
 
                             <small class="text-muted mt-1">
                                 Return available till {{ $returnExpiryDate->format('d M Y') }}
@@ -350,17 +363,55 @@
                             <input type="hidden" name="order_id" id="return_order_id" value="{{$order->id}}">
 
                             <!-- Request Type -->
-                            <!-- Request Type -->
                             <div style="margin-bottom:22px; clear:both;">
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Request Type <span style="color:#e53935;">*</span>
                                 </label>
-                                <select name="request_type" id="request_type" required
-                                    style="width:100%; padding:12px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; cursor:pointer; outline:none; display:block;">
-                                    <option value="">Select request type</option>
-                                    <option value="return">Return &amp; Refund</option>
-                                </select>
+                                <div class="return-type-options">
+                                    <label class="return-type-option">
+                                        <input type="radio" name="request_type" value="return" required>
+                                        <span>Return</span>
+                                    </label>
+                                    <label class="return-type-option">
+                                        <input type="radio" name="request_type" value="exchange" required>
+                                        <span>Exchange</span>
+                                    </label>
+                                </div>
                             </div>
+
+                            <!-- Product Selection -->
+                            <div style="margin-bottom:22px; clear:both;">
+                                <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
+                                    Select Product <span style="color:#e53935;">*</span>
+                                </label>
+                                <div class="return-product-list">
+                                    @foreach($order->cart as $item)
+                                        @php
+                                            $modalPhoto = explode(',', $item->product['photo'] ?? '');
+                                            $modalImages = [];
+                                            if(isset($item->color_id) && $item->color_id != null){
+                                                $modalColor = \App\Models\Color::find($item->color_id);
+                                                $modalImages = $modalColor ? $modalColor->images->pluck('image')->map(function($image) {
+                                                    return asset('public/storage/products/'.$image);
+                                                }) : [];
+                                            }
+                                            $modalImage = (isset($modalImages) && is_countable($modalImages) && count($modalImages))
+                                                ? ($modalImages[0] ?? null)
+                                                : (!empty($modalPhoto[0]) ? asset('public/'.$modalPhoto[0]) : '');
+                                            $modalPrice = json_decode($item->size_price,true) ?? [];
+                                        @endphp
+                                        <label class="return-product-option">
+                                            <input type="radio" name="cart_id" value="{{ $item->id }}" required>
+                                            <img src="{{ $modalImage }}" alt="{{ $item->product->title ?? 'Product' }}">
+                                            <span>
+                                                <strong>{{ $item->product->title ?? 'N/A' }}</strong>
+                                                <small>Qty: {{ $item->quantity }} | Size: {{ $modalPrice['size'] ?? 'N/A' }} | Color: {{ $item->color->color_name ?? 'N/A' }}</small>
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+
                             <!-- Reason -->
                             <div style="margin-bottom:22px; clear:both;">
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
@@ -475,6 +526,61 @@
     {
         box-shadow:unset;
         border:1px solid #5db844;
+    }
+
+    .return-type-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .return-type-option,
+    .return-product-option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .return-type-option span {
+        font-weight: 600;
+        color: #1a1a1a;
+    }
+
+    .return-product-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .return-product-option img {
+        width: 64px;
+        height: 64px;
+        border-radius: 8px;
+        object-fit: contain;
+        border: 1px solid #eee;
+        background: #fff;
+        flex-shrink: 0;
+    }
+
+    .return-product-option span {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        line-height: 1.35;
+    }
+
+    .return-product-option small {
+        color: #777;
+    }
+
+    .return-type-option:has(input:checked),
+    .return-product-option:has(input:checked) {
+        border-color: #5db844;
+        background: #f6fdf3;
     }
 
 

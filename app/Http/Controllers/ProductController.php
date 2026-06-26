@@ -136,6 +136,7 @@ class ProductController extends Controller
                 'title' => $request->title, 
                 'description' => $request->description, 
                 'product_features' => $request->product_features ?? null,
+                'size_chart' => $request->size_chart ?? null,
                 'cat_id' => $request->cat_id, 
                 'child_cat_id' => $request->child_cat_id, 
                 'discount' => $request->discount, 
@@ -156,6 +157,7 @@ class ProductController extends Controller
                 'title' => $request->title, 
                 'description' => $request->description, 
                 'product_features' => $request->product_features ?? null,
+                'size_chart' => $request->size_chart ?? null,
                 'cat_id' => $request->cat_id, 
                 'child_cat_id' => $request->child_cat_id, 
                 'discount' => $request->discount,
@@ -351,6 +353,7 @@ class ProductController extends Controller
             $product->slug = $slug;
             $product->description = $request->description;
             $product->product_features = $request->product_features ?? null;
+            $product->size_chart = $request->size_chart ?? null;
             $product->cat_id = $request->cat_id;
             $product->child_cat_id = $request->child_cat_id;
             $product->discount = $request->discount;
@@ -371,6 +374,7 @@ class ProductController extends Controller
             $product->slug = $slug;
             $product->description = $request->description;
             $product->product_features = $request->product_features ?? null;
+            $product->size_chart = $request->size_chart ?? null;
             $product->cat_id = $request->cat_id;
             $product->child_cat_id = $request->child_cat_id;
             $product->discount = $request->discount;

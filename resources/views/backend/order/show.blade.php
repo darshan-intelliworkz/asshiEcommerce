@@ -6,8 +6,10 @@
 <div class="card">
 <h5 class="card-header">Order       
   {{-- <a href="{{route('order.pdf',$order->id)}}" class=" btn btn-sm btn-primary shadow-sm float-right"><i class="fas fa-download fa-sm text-white-50"></i> Generate PDF</a> --}}
-  <a href="{{ $shipmentDetails->label_pdf }}" class="btn btn-sm btn-primary">Download LABEL PDF</a>
-  <a href="{{ $shipmentDetails->manifest_url }}" class="btn btn-sm btn-primary">Download Menifeast PDF</a>
+  @if($shipmentDetails)
+    <a href="{{ $shipmentDetails->label_pdf }}" class="btn btn-sm btn-primary">Download LABEL PDF</a>
+    <a href="{{ $shipmentDetails->manifest_url }}" class="btn btn-sm btn-primary">Download Menifeast PDF</a>
+  @endif
   </h5>
   <div class="card-body">
     @if($order)
@@ -139,6 +141,85 @@
         </div>
       </div>
     </section>
+
+    @if($order->returnRequests && $order->returnRequests->count())
+    <section class="confirmation_part section_padding mt-4">
+        <div class="order_boxes">
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="order-info">
+                        <h4 class="text-center pb-4">RETURN / EXCHANGE REQUESTS</h4>
+
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Product</th>
+                                    <th>Reason</th>
+                                    <th>Images</th>
+                                    <th>Status</th>
+                                    <th>Admin Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($order->returnRequests as $request)
+                                <tr>
+                                    <td>{{ ucfirst($request->return_type) }}</td>
+                                    <td>
+                                        @if($request->cart)
+                                            {{ $request->cart->product->title ?? 'N/A' }}<br>
+                                            <small>Qty: {{ $request->cart->quantity }}</small>
+                                        @else
+                                            Full order
+                                        @endif
+                                    </td>
+                                    <td>
+                                        {{ $request->reason }}
+                                        @if($request->customer_comment)
+                                            <br><small>Note: {{ $request->customer_comment }}</small>
+                                        @endif
+                                        @if($request->admin_comment)
+                                            <br><small>Admin: {{ $request->admin_comment }}</small>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if(is_array($request->images) && count($request->images))
+                                            @foreach($request->images as $image)
+                                                <a href="{{ asset('public/'.$image) }}" target="_blank">
+                                                    <img src="{{ asset('public/'.$image) }}" width="55" height="55" style="object-fit:cover; border-radius:6px; margin:2px;" alt="Request image">
+                                                </a>
+                                            @endforeach
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>{{ ucwords(str_replace('_', ' ', $request->status)) }}</td>
+                                    <td style="min-width:220px;">
+                                        @if($request->return_type === 'exchange' && $request->status === 'pending')
+                                            <form method="POST" action="{{ route('exchange-request.approve', $request->id) }}" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success mb-2">Approve</button>
+                                            </form>
+                                            <form method="POST" action="{{ route('exchange-request.reject', $request->id) }}">
+                                                @csrf
+                                                <textarea name="admin_comment" rows="2" class="form-control mb-2" placeholder="Reject reason (optional)"></textarea>
+                                                <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                                            </form>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    @endif
     
     {{-- PRODUCT INFORMATION --}}
     <section class="confirmation_part section_padding mt-4">

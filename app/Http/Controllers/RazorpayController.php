@@ -185,27 +185,30 @@ class RazorpayController extends Controller
     public function refundPayment($paymentId)
     {
         Log::info('Initiating refund for payment ID: ' . $paymentId);
-
         $payment = PaymentOrders::where('order_id', $paymentId)->firstOrFail();
-
         $razorpayPaymentId = $payment->razorpay_payment_id;
-
         Log::info('Payment record found: ' . $payment->amount .
             ' Razorpay ID: ' . $razorpayPaymentId);
 
-        $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
-        if (!$captureResponse->getData()->status) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Payment capture failed. Refund cannot be processed.',
-                'data' => $captureResponse->getData()
-            ]);
-        }
+        // $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
+        // if (!$captureResponse->getData()->status) {
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Payment capture failed. Refund cannot be processed.',
+        //         'data' => $captureResponse->getData()
+        //     ]);
+        // }
         $paymentDetails = $this->getPayment($razorpayPaymentId);
-
         Log::info('Razorpay Payment Details: ' . json_encode($paymentDetails));
-
         if ($paymentDetails['status'] !== 'captured') {
+            $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
+            if (!$captureResponse->getData()->status) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Payment capture failed. Refund cannot be processed.',
+                    'data' => $captureResponse->getData()
+                ]);
+            }
             return response()->json([
                 'status' => false,
                 'message' => 'Payment not captured'

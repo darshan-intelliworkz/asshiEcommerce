@@ -10,9 +10,11 @@ class OrderReturnRequest extends Model
 
     protected $fillable = [
         'order_id',
+        'cart_id',
         'return_type',
         'reason',
         'customer_comment',
+        'admin_comment',
         'images',
         'status',
         'shiprocket_return_order_id',
@@ -38,6 +40,7 @@ class OrderReturnRequest extends Model
         'refund_payload',
         'error_response',
         'approved_at',
+        'rejected_at',
         'pickup_completed_at',
         'refunded_at',
     ];
@@ -70,6 +73,8 @@ class OrderReturnRequest extends Model
 
         'approved_at' => 'datetime',
 
+        'rejected_at' => 'datetime',
+
         'pickup_completed_at' => 'datetime',
 
         'refunded_at' => 'datetime',
@@ -78,6 +83,11 @@ class OrderReturnRequest extends Model
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function cart()
+    {
+        return $this->belongsTo(Cart::class);
     }
 
     public function exchangeOrder()
