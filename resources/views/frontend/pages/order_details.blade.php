@@ -440,13 +440,17 @@
                             </div>
 
                             <!-- Reason -->
+                            <div id="exchangeNote" style="display:none; margin-bottom:15px; padding:10px; background-color:#fff3cd; color:#856404; border:1px solid #ffeeba; border-radius:5px; font-size:13px;">
+                                <strong>Note:</strong> Only defective or damaged items are eligible for an exchange.
+                            </div>
                             <div style="margin-bottom:22px; clear:both;">
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Reason <span style="color:#e53935;">*</span>
                                 </label>
-                                <textarea name="reason" rows="5" 
-                                    placeholder="Please explain your issue in detail..."
-                                    style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; resize:vertical; outline:none; font-family:inherit; box-sizing:border-box; line-height:1.5; display:block;"></textarea>
+                                <select name="reason" id="returnReason" class="wide"
+                                    style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; outline:none; font-family:inherit; box-sizing:border-box; display:block;">
+                                    <option value="" disabled selected>Select a reason...</option>
+                                </select>
                             </div>
 
                             <!-- Upload -->
@@ -830,6 +834,54 @@
         }
 
         $(document).ready(function() {
+            // Dynamic reasons based on request type
+            const returnReasons = [
+                "Size/Fit Issue",
+                "Wrong Item Received",
+                "Color/Style differs from website",
+                "Defective/Damaged",
+                "Other"
+            ];
+            const exchangeReasons = [
+                "Defective/Damaged"
+            ];
+
+            $('input[name="request_type"]').on('change', function() {
+                let type = $(this).val();
+                let reasonSelect = $('#returnReason');
+                let currentVal = reasonSelect.val();
+                
+                if (type === 'exchange') {
+                    $('#exchangeNote').show();
+                } else {
+                    $('#exchangeNote').hide();
+                }
+                
+                reasonSelect.empty().append('<option value="" disabled selected>Select a reason...</option>');
+                
+                let reasons = type === 'exchange' ? exchangeReasons : returnReasons;
+                reasons.forEach(function(r) {
+                    reasonSelect.append('<option value="' + r + '">' + r + '</option>');
+                });
+                
+                // If it was already selected and is in the new list, keep it
+                if(reasons.includes(currentVal)) {
+                    reasonSelect.val(currentVal);
+                } else if(type === 'exchange') {
+                    // Auto-select if there's only one option
+                    reasonSelect.val("Defective/Damaged");
+                }
+                
+                if($.fn.niceSelect) {
+                    reasonSelect.niceSelect('update');
+                }
+            });
+
+            // Trigger change if already checked (e.g. going back)
+            if($('input[name="request_type"]:checked').length > 0) {
+                $('input[name="request_type"]:checked').trigger('change');
+            }
+
             $.validator.addMethod("requiredFile", function(value, element) {
                 return element.files && element.files.length > 0;
             }, "Please upload Product Images.");

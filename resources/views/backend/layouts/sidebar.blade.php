@@ -138,6 +138,7 @@
             <h6 class="collapse-header">Order Options:</h6>
             <a class="collapse-item" href="{{route('order.index')}}">Orders</a>
             <a class="collapse-item" href="{{route('order.return-delivered')}}">Return Delivered</a>
+            <a class="collapse-item" href="{{route('order.exchange-requests')}}">Exchange Requests</a>
           </div>
         </div>
     </li>

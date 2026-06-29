@@ -206,6 +206,7 @@ Route::get('/product-list/{slug}/{sub_slug}', [FrontendController::class, 'showP
         Route::resource('/order', 'OrderController');
         Route::post('/exchange-request/{id}/approve', [OrderController::class, 'approveExchangeRequest'])->name('exchange-request.approve');
         Route::post('/exchange-request/{id}/reject', [OrderController::class, 'rejectExchangeRequest'])->name('exchange-request.reject');
+        Route::get('/exchange-requests', [OrderController::class, 'exchangeRequests'])->name('order.exchange-requests');
         Route::get('/return-delivered-orders', [OrderController::class, 'returnDeliveredOrders'])->name('order.return-delivered');
         Route::post('/return-request/{id}/refund', [OrderController::class, 'refundReturnRequest'])->name('return-request.refund');
         Route::post('/return-request/{id}/update-cod-refund', [OrderController::class, 'updateCodRefundStatus'])->name('return-request.update-cod-refund');

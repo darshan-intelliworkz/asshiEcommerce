@@ -575,10 +575,14 @@ class OrderController extends Controller
                 ? $request->customer_upi_id
                 : null,
             'images'            => $uploadedImages,
-            'status'            => 'pending',
+            'status'            => $request->request_type === 'exchange' ? 'exchange_requested' : 'pending',
         ]);
 
-        $order->status = 'return request';
+        if ($request->request_type === 'exchange') {
+            $order->status = 'exchange requested';
+        } else {
+            $order->status = 'return request';
+        }
         $order->save();
 
         if($request->request_type == 'return'){
@@ -603,24 +607,79 @@ class OrderController extends Controller
         ]);
     }
 
+    public function exchangeRequests()
+    {
+        $exchangeRequests = OrderReturnRequest::with(['order', 'cart.product', 'cart.color'])
+            ->where('return_type', 'exchange')
+            ->orderBy('id', 'DESC')
+            ->paginate(10);
+            
+        return view('backend.order.exchange_requests', compact('exchangeRequests'));
+    }
 
     public function approveExchangeRequest($id)
     {
         $returnRequest = OrderReturnRequest::where('return_type', 'exchange')->findOrFail($id);
 
-        if ($returnRequest->status !== 'pending') {
+        if ($returnRequest->status !== 'exchange_requested' && $returnRequest->status !== 'pending') {
             request()->session()->flash('error', 'This exchange request has already been processed.');
             return back();
         }
 
+        // 1. Create Return Pickup
         $response = $this->returnOrder($returnRequest->order_id, $returnRequest->id);
         $data = $response->getData(true);
 
-        request()->session()->flash(
-            !empty($data['status']) ? 'success' : 'error',
-            !empty($data['status']) ? 'Exchange request approved successfully.' : ($data['message'] ?? 'Failed to approve exchange request.')
-        );
+        if (empty($data['status'])) {
+            request()->session()->flash('error', $data['message'] ?? 'Failed to create return pickup with Shiprocket.');
+            return back();
+        }
 
+        // 2. Clone Order for Replacement
+        $originalOrder = Order::with('cart')->findOrFail($returnRequest->order_id);
+        
+        $exchangeOrder = $originalOrder->replicate();
+        $exchangeOrder->order_number = 'EXC-' . strtoupper(\Illuminate\Support\Str::random(10));
+        $exchangeOrder->total_amount = 0;
+        $exchangeOrder->sub_total = 0;
+        $exchangeOrder->shiping_charges = 0;
+        $exchangeOrder->coupon = 0;
+        $exchangeOrder->payment_status = 'paid';
+        $exchangeOrder->status = 'process';
+        $exchangeOrder->save();
+        
+        if ($returnRequest->cart_id) {
+            $cartItem = Cart::findOrFail($returnRequest->cart_id);
+            $newCartItem = $cartItem->replicate();
+            $newCartItem->order_id = $exchangeOrder->id;
+            $newCartItem->price = 0;
+            $newCartItem->amount = 0;
+            $newCartItem->save();
+        } else {
+            foreach($originalOrder->cart as $cartItem) {
+                $newCartItem = $cartItem->replicate();
+                $newCartItem->order_id = $exchangeOrder->id;
+                $newCartItem->price = 0;
+                $newCartItem->amount = 0;
+                $newCartItem->save();
+            }
+        }
+
+        // 3. Create Forward Shipment for the Exchange Order
+        $shiprocketService = new \App\Services\ShiprocketService(new \GuzzleHttp\Client());
+        $shiprocketService->createShipmentOrder($exchangeOrder);
+        
+        // 4. Update the return request
+        $returnRequest->update([
+            'status' => 'exchange_approved',
+            'approved_at' => now(),
+            'exchange_order_id' => $exchangeOrder->id
+        ]);
+        
+        $originalOrder->status = 'exchange approved';
+        $originalOrder->save();
+
+        request()->session()->flash('success', 'Exchange request approved! Return pickup scheduled and replacement order created.');
         return back();
     }
 
@@ -632,24 +691,25 @@ class OrderController extends Controller
 
         $returnRequest = OrderReturnRequest::where('return_type', 'exchange')->findOrFail($id);
 
-        if ($returnRequest->status !== 'pending') {
+        if ($returnRequest->status !== 'exchange_requested' && $returnRequest->status !== 'pending') {
             request()->session()->flash('error', 'This exchange request has already been processed.');
             return back();
         }
 
         $returnRequest->update([
-            'status' => 'rejected',
+            'status' => 'exchange_rejected',
             'admin_comment' => $request->admin_comment,
             'rejected_at' => now(),
         ]);
 
         if ($returnRequest->order) {
-            $returnRequest->order->status = 'delivered';
+            $returnRequest->order->status = 'exchange request rejected';
             $returnRequest->order->save();
         }
 
         request()->session()->flash('success', 'Exchange request rejected successfully.');
         return back();
+
     }
 
     public function refundReturnRequest($id)
