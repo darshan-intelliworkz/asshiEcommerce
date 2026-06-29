@@ -60,6 +60,12 @@ return [
             'level' => 'debug',
             'days' => 7,
         ],
+        'razorpay' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/razorpay.log'),
+            'level' => 'debug',
+            'days' => 7,
+        ],
 
         'slack' => [
             'driver' => 'slack',

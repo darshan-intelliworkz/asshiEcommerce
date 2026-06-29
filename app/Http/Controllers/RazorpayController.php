@@ -182,14 +182,15 @@ class RazorpayController extends Controller
 
    
 
-    public function refundPayment($paymentId)
+    public function refundPayment($orderId)
     {
-        Log::info('Initiating refund for payment ID: ' . $paymentId);
-        $payment = PaymentOrders::where('order_id', $paymentId)->firstOrFail();
+        Log::info('Initiating refund for payment ID: ' . $orderId);
+        $payment = PaymentOrders::where('order_id', $orderId)->firstOrFail();
         $razorpayPaymentId = $payment->razorpay_payment_id;
         Log::info('Payment record found: ' . $payment->amount .
             ' Razorpay ID: ' . $razorpayPaymentId);
 
+        // we have implatented auto capture on razerpay dashboard, so this comment but dont remove for need in future  
         // $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
         // if (!$captureResponse->getData()->status) {
         //     return response()->json([
@@ -201,14 +202,14 @@ class RazorpayController extends Controller
         $paymentDetails = $this->getPayment($razorpayPaymentId);
         Log::info('Razorpay Payment Details: ' . json_encode($paymentDetails));
         if ($paymentDetails['status'] !== 'captured') {
-            $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
-            if (!$captureResponse->getData()->status) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Payment capture failed. Refund cannot be processed.',
-                    'data' => $captureResponse->getData()
-                ]);
-            }
+            // $captureResponse = $this->capturePayment($razorpayPaymentId, $payment->amount);
+            // if (!$captureResponse->getData()->status) {
+            //     return response()->json([
+            //         'status' => false,
+            //         'message' => 'Payment capture failed. Refund cannot be processed.',
+            //         'data' => $captureResponse->getData()
+            //     ]);
+            // }
             return response()->json([
                 'status' => false,
                 'message' => 'Payment not captured'
@@ -363,6 +364,121 @@ class RazorpayController extends Controller
         if (curl_errno($ch)) {
             Log::error('Razorpay getPayment CURL error: ' . curl_error($ch));
         }
+
+        curl_close($ch);
+
+        return json_decode($result, true);
+    }
+
+    // refund process for COD orders
+    public function createContact($name, $email, $mobile)
+    {
+        $key = env('RAZORPAYX_KEY');
+        $secret = env('RAZORPAYX_SECRET');
+
+        $payload = [
+            'name'    => $name,
+            'email'   => $email,
+            'contact' => $mobile,
+            'type'    => 'customer',
+        ];
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_URL, 'https://api.razorpay.com/v1/contacts');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_USERPWD, $key . ':' . $secret);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $result = curl_exec($ch);
+
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        Log::channel('razorpay')->info('Create Contact HTTP Code: ' . $httpCode);
+        Log::channel('razorpay')->info('Create Contact Response: ' . $result);
+
+        curl_close($ch);
+
+        return json_decode($result, true);
+    }
+
+    public function createUpiFundAccount($contactId, $upiId)
+    {
+        $key = env('RAZORPAYX_KEY');
+        $secret = env('RAZORPAYX_SECRET');
+
+        $payload = [
+            'contact_id'  => $contactId,
+            'account_type' => 'vpa',
+            'vpa' => [
+                'address' => $upiId
+            ]
+        ];
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_URL, 'https://api.razorpay.com/v1/fund_accounts');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_USERPWD, $key . ':' . $secret);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $result = curl_exec($ch);
+
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        Log::channel('razorpay')->info('Create Fund Account HTTP Code: ' . $httpCode);
+        Log::channel('razorpay')->info('Create Fund Account Response: ' . $result);
+
+        curl_close($ch);
+
+        return json_decode($result, true);
+    }
+
+    public function createPayout(
+        $fundAccountId,
+        $amount,
+        $referenceId
+    ) {
+        $key = env('RAZORPAYX_KEY');
+        $secret = env('RAZORPAYX_SECRET');
+
+        $payload = [
+            'account_number' => env('RAZORPAYX_ACCOUNT_NUMBER'),
+            'fund_account_id' => $fundAccountId,
+            'amount' => $amount * 100,
+            'currency' => 'INR',
+            'mode' => 'UPI',
+            'purpose' => 'refund',
+            'queue_if_low_balance' => true,
+            'reference_id' => $referenceId,
+            'narration' => 'Order Return Refund'
+        ];
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_URL, 'https://api.razorpay.com/v1/payouts');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_USERPWD, $key . ':' . $secret);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json'
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $result = curl_exec($ch);
+
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        Log::channel('razorpay')->info('Create Payout HTTP Code: ' . $httpCode);
+        Log::channel('razorpay')->info('Create Payout Response: ' . $result);
 
         curl_close($ch);
 

@@ -42,9 +42,10 @@
                 <div class="d-flex flex-column">
                      @php
                         use Carbon\Carbon;
-
+                        use App\Models\OrderReturnRequest;
                         $deliveredDate = Carbon::parse($order->updated_at); // or delivered_at if you have that column
                         $returnExpiryDate = $deliveredDate->copy()->addDays(7);
+                        $countReturnReqtuest = OrderReturnRequest::where('order_id', $order->id)->count();
                     @endphp
 
                     @if(isset($latestReturnRequest) && $latestReturnRequest)
@@ -54,7 +55,7 @@
 
                     @if($order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
-                    @elseif($order->status == 'delivered')
+                    @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
                         @if(now()->lessThanOrEqualTo($returnExpiryDate))
                             @if(isset($activeReturnRequest) && $activeReturnRequest)
                                 <button class="btn btn-secondary" type="button" disabled>
@@ -78,6 +79,10 @@
                             </button>
 
                         @endif
+                    @elseif($order->status == 'return request')
+                        <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}} , 'Return Cancel')" >
+                            Return Request Cancell
+                        </button>
                     @endif
                 </div>
 
@@ -329,7 +334,7 @@
     </div>
 
     {{-- create a modal flow for return/exchange --}}
-
+       
         <!-- Return / Exchange Modal -->
         <div class="modal fade" id="returnExchangeModal" tabindex="-1" role="dialog" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:700px; margin:30px auto;">
@@ -359,6 +364,26 @@
                         <form id="returnExchangeForm" method="POST" action="{{ route('return.exchange') }}" enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="order_id" id="return_order_id" value="{{$order->id}}">
+                            
+                            @php
+                                $paymentsMethod  =  $order->payment_method 
+                            @endphp
+                            
+                            @if($paymentsMethod == 'cod')
+                                <!-- Request Type -->
+                                <div style="margin-bottom:22px; clear:both;">
+                                    <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
+                                        UPI ID <span style="color:#e53935;">*</span>
+                                    </label>
+                                    <input type="text" name="customer_upi_id" id="customer_upi_id" required
+                                        placeholder="Enter your UPI ID for refund"
+                                        style="width:100%; padding:12px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; cursor:pointer; outline:none; display:block;">
+                                    @if ($errors->has('customer_upi_id'))
+                                        <span class="text-danger">{{ $errors->first('customer_upi_id') }}</span>
+                                    @endif
+                                </div>
+                                
+                            @endif
 
                             <!-- Request Type -->
                             <div style="margin-bottom:22px; clear:both;">
@@ -662,7 +687,15 @@
 @endpush
 
 @push('scripts')
+     @if ($errors->any())
+        <script>
+            $(document).ready(function () {
+                $('#returnExchangeModal').modal('show');
+            });
+        </script>
+    @endif
     <script>
+
         function Updateorder(id, status){
             // cancelorder(id, status);
             if(status === 'Cancell'){
@@ -670,6 +703,8 @@
             } else if(status == 'Return') {
                 // returnorder(id , status);
                 openReturnExchangeModal(id);
+            }else if(status == 'Return Cancel') {
+                returnRequestCancel(id , status); 
             } else {
                 var result = false;
             }
@@ -739,6 +774,32 @@
 
         function returnorder(id , status = 'Return'){
             var result = confirm('Are you sure you want to return this order?');
+            if(result) {
+                $.ajax({
+                    url: "{{ route('order.update.status') }}",
+                    method: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        id: id,
+                        status: status
+                    },
+                    success: function(response) {
+                        if(response.status) {
+                            alert(response.message);
+                            location.reload();
+                        } else {
+                            alert('Failed to update order. Please try again.');
+                        }
+                    },
+                    error: function() {
+                        alert('An error occurred while updating the order. Please try again.');
+                    }
+                });
+            }
+        }
+
+        function returnRequestCancel(id , status = 'Return Cancel'){
+            var result = confirm('Are you sure you want to cancel this return request?');
             if(result) {
                 $.ajax({
                     url: "{{ route('order.update.status') }}",

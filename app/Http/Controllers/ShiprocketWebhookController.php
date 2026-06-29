@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
+use App\Models\ShipmentDetails;
 
 class ShiprocketWebhookController extends Controller
 {
@@ -20,9 +21,17 @@ class ShiprocketWebhookController extends Controller
 
         // RETURN ORDER WEBHOOK
         if (($payload['is_return'] ?? 0) == 1) {
+            Log::channel('shiprocket')->info(
+                'Identified as Return Order Webhook',
+                $payload
+            );
             $this->updateReturnRequest($payload);
         } else {
             // FORWARD ORDER WEBHOOK
+            Log::channel('shiprocket')->info(
+                'Identified as Forward Order Webhook',
+                $payload
+            );
             $this->updateForwardOrder($payload);
         }
 
@@ -33,30 +42,42 @@ class ShiprocketWebhookController extends Controller
 
     private function updateReturnRequest(array $payload)
     {
+        Log::channel('shiprocket')->info(
+            'Processing Return Order Webhook',
+            $payload
+        );
         $returnRequest = OrderReturnRequest::where(
             'awb_code',
             $payload['awb'] ?? null
         )
         ->orWhere(
             'shiprocket_return_order_id',
-            $payload['order_id'] ?? null
+            $payload['sr_order_id'] ?? null
         )
         ->first();
 
-        if (!$returnRequest) {
+        Log::channel('shiprocket')->info('Return Request Lookup', [
+            'awb' => $payload['awb'] ?? null,
+            'sr_order_id' => $payload['sr_order_id'] ?? null,
+            'found' => !empty($returnRequest),
+        ]);
 
+        Log::channel('shiprocket')->info(
+            'Return Request data: ' . json_encode($returnRequest)
+        );
+
+        if (!$returnRequest) {
             Log::channel('shiprocket')->warning(
                 'Return Request Not Found',
                 $payload
             );
-
+            $this->cancelOrder($payload);
             return;
         }
 
         $shiprocketStatus = strtoupper(
             trim($payload['current_status'] ?? '')
         );
-
         
         $status = match ($shiprocketStatus) {
             'RETURN PICKUP GENERATED' => 'return_pickup_generated',
@@ -67,6 +88,8 @@ class ShiprocketWebhookController extends Controller
             'QC PASSED' => 'qc_passed',
             'QC FAILED' => 'qc_failed',
             'REFUND PROCESSED' => 'refunded',
+            'RETURN CANCELED' => 'return_cancelled',
+            'RETURN CANCELLED' => 'return_cancelled',
 
             default
                 => strtolower(
@@ -74,8 +97,10 @@ class ShiprocketWebhookController extends Controller
                 ),
         };
 
+        Log::channel('shiprocket')->info(
+            'Mapped Status: ' . $status
+        );
         $returnRequest->update([
-
             'status' => $status,
             'pickup_status'=> $payload['shipment_status'] ?? null,
             'current_tracking_status'=> $payload['current_status'] ?? null,
@@ -85,6 +110,17 @@ class ShiprocketWebhookController extends Controller
             'tracking_payload'=> $payload,
         ]);
 
+        $shipmentDetails = ShipmentDetails::where(
+            'order_id',
+            $returnRequest->order_id ?? null
+        )->first();
+
+        if ($shipmentDetails) {
+            $shipmentDetails->update([
+                'shipment_status' => $status,
+                'shipment_response' => $payload
+            ]);
+        }
 
         if (strtolower($status) == 'return_picked_up') {
             $returnRequest->pickup_completed_at = now();
@@ -103,20 +139,53 @@ class ShiprocketWebhookController extends Controller
                 'status' => $status
             ]
         );
+
         // order deliverd on company then in razerpay call refund api when payment mode is online 
-        //refundPayment --> call this function 
-        // if (strtolower($status) == 'return_delivered') {
+        //refundPayment --> call this function
+        $razorpayController = new RazorpayController();
+        if ($returnRequest->order->payment_method == 'razorpay' && $status == 'return_delivered') {
+            // TEMPORARY COMMENTED DUE TO THIS WILL CALL BY ADMIN AS OF NOW
+            // $razerpayrefund = $razorpayController->refundPayment($returnRequest->order->id);
+            //     Log::channel('shiprocket')->info('Refund Initiated for Order ID: ' . $razerpayrefund);
+        }
+        
+        // on cod order deliverd on company then in razerpay call refund api
+        if ($returnRequest->order->payment_method == 'cod' && $status == 'return_delivered') {
+            $customerDeatils = $returnRequest->order;
+            Log::channel('shiprocket')->info('Customer Details: ' . json_encode($customerDeatils));
+            $fullname = $customerDeatils->first_name . ' ' . $customerDeatils->last_name;
+            $contact = $razorpayController->createContact(
+                $fullname,
+                $customerDeatils->email,
+                $customerDeatils->phone
+            );
+            Log::channel('shiprocket')->info('Contact Created with ID: ' . $contact);
 
-        // }
+            $fundAccount = $razorpayController->createUpiFundAccount(
+                $contact['id'],
+                $returnRequest->refund_upi_id
+            );
 
+            $payout = $razorpayController->createPayout(
+                $fundAccount['id'],
+                $returnRequest->refund_amount,
+                'RETURN_' . $returnRequest->id
+            );
+        }
+        Log::channel('shiprocket')->info(
+            'Refund Processed for Return Request ID: ' . $returnRequest->id
+        );
     }
 
     private function updateForwardOrder(array $payload)
     {
-        $order = Order::where(
-            'order_number',
-            $payload['order_id'] ?? null
+        $shipmentDetails = ShipmentDetails::where(
+            'shipment_order_id',
+            $payload['sr_order_id'] ?? null
         )->first();
+
+
+        $order = Order::where('id', $shipmentDetails->order_id ?? null)->first();
 
         if (!$order) {
             Log::channel('shiprocket')->warning(
@@ -136,21 +205,24 @@ class ShiprocketWebhookController extends Controller
          * ---------------------------------------------------------
          */
         $status = match ($shiprocketStatus) {
-            'PICKUP GENERATED' => 'pickup_generated',
-            'PICKED UP' => 'picked_up',
-            'IN TRANSIT' => 'in_transit',
-            'OUT FOR DELIVERY' => 'out_for_delivery',
+            'PICKUP GENERATED',
+            'PICKED UP',
+            'IN TRANSIT' => 'process',
+            'OUT FOR DELIVERY' => 'out for delivery',
             'DELIVERED' => 'delivered',
-            'RTO DELIVERED' => 'returned',
+            'CANCELED',
+            'CANCELLED' => 'cancel',
 
-            default
-                => strtolower(
-                    str_replace(' ', '_', $shiprocketStatus)
-                ),
+            default => $order->status,
         };
 
         $order->update([
             'status' => $status,
+        ]);
+
+        $shipmentDetails->update([
+            'shipment_status' => $status,
+            'shipment_response' => $payload
         ]);
 
         Log::channel('shiprocket')->info(
@@ -158,6 +230,61 @@ class ShiprocketWebhookController extends Controller
             [
                 'order_id' => $order->id,
                 'status' => $status
+            ]
+        );
+    }
+
+    private function cancelOrder($payload)
+    {
+        Log::channel('shiprocket')->info(
+            'Cancel Shipment Order Request',
+            $payload
+        );
+        $shipmentDetailsUpdate = ShipmentDetails::where(
+            'shipment_order_id',
+            $payload['sr_order_id'] ?? null
+        )->first();
+
+        Log::channel('shiprocket')->info('Shipment Details Lookup for Cancellation', [
+            'shipment_order_id' => $payload['sr_order_id'] ?? null,
+            'found' => !empty($shipmentDetailsUpdate),
+        ]);
+        if (!$shipmentDetailsUpdate) {
+            Log::channel('shiprocket')->warning(
+                'Shipment Details Not Found for Cancellation',
+                $payload
+            );
+            return;
+        }
+
+        $shipmentDetailsUpdate->update([
+            'shipment_status' => 'canceled',
+            'shipment_response' => $payload
+        ]);
+
+        $order = Order::where('id', $shipmentDetailsUpdate->order_id)->first();
+
+        log::channel('shiprocket')->info('Order Lookup for Cancellation', [
+            'order_id' => $shipmentDetailsUpdate->order_id,
+            'found' => !empty($order),
+        ]);
+        if (!$order) {
+            Log::channel('shiprocket')->warning(
+                'Order Not Found for Cancellation',
+                $payload
+            );
+            return;
+        }
+
+        $order->update([
+            'status' => 'cancel',
+        ]);
+
+        Log::channel('shiprocket')->info(
+            'Order Canceled Successfully',
+            [
+                'order_id' => $order->id,
+                'status' => 'canceled'
             ]
         );
     }
