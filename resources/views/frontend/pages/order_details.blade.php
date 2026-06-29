@@ -28,15 +28,15 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center">
                 <div>
                     <h4>Order #{{$order->order_number ?? '-'}}</h4>
-                    <small>Order Date: {{$order->created_at ? date('d-m-Y', strtotime($order->created_at)) : '-'}}</small>
+                    <small>Order Date: {{isset($order->created_at) && $order->created_at != '' ? date('d-m-Y', strtotime($order->created_at)) : '-'}}</small>
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Order Status</h6>
-                    <span class="badge badge-info">{{strtoupper($order->status) ?? '-'}}</span>
+                    <h6><span class="badge badge-info">{{strtoupper($order->status) ?? '-'}}</span></h6>
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Payment Status</h6>
-                    <span class="badge badge-info">{{strtoupper($order->payment_status) ?? '-'}}</span>
+                    <h6><span class="badge badge-info">{{strtoupper($order->payment_status) ?? '-'}}</span></h6>
                 </div>
 
                 <div class="d-flex flex-column">
@@ -48,10 +48,8 @@
                     @endphp
 
                     @if(isset($latestReturnRequest) && $latestReturnRequest)
-                        <small class="text-muted mb-1">
-                            {{ ucfirst($latestReturnRequest->return_type) }} request status:
-                            <strong>{{ ucwords(str_replace('_', ' ', $latestReturnRequest->status)) }}</strong>
-                        </small>
+                        <h6>{{ ucfirst($latestReturnRequest->return_type) }} request status </h6>
+                        <h6><span class="badge badge-info">{{ strtoupper(str_replace('_', ' ', $latestReturnRequest->status)) }}</span></h6>
                     @endif
 
                     @if($order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')

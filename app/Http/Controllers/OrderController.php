@@ -35,6 +35,16 @@ class OrderController extends Controller
         return view('backend.order.index')->with('orders',$orders);
     }
 
+    public function returnDeliveredOrders()
+    {
+        $returnRequests = OrderReturnRequest::with(['order', 'cart.product', 'cart.color'])
+            ->where('status', 'return_delivered')
+            ->orderBy('id', 'DESC')
+            ->paginate(10);
+
+        return view('backend.order.return_delivered', compact('returnRequests'));
+    }
+
    
     public function store(Request $request , DelhiveryController $delhivery) 
     {
@@ -641,13 +651,24 @@ class OrderController extends Controller
             'request_type'  => 'required|in:return,exchange',
             'reason'        => 'required|string',
             'notes'         => 'nullable|string',
-            'images.*'      => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'images'        => 'required|array|min:1',
+            'images.*'      => 'required|image|mimes:jpg,jpeg,png|max:2048',
+            'customer_upi_id' => 'nullable|string|max:100',
         ]);
 
-        $order = Order::find($request->order_id);
+        $order = Order::where('id', $request->order_id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
         if (!$order) {
             request()->session()->flash('error', 'Order not found');
             return back();
+        }
+
+        if ($order->payment_method === 'cod' && $request->request_type === 'return') {
+            $request->validate([
+                'customer_upi_id' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}$/'],
+            ], [
+                'customer_upi_id.required' => 'Please enter your UPI ID for COD refund.',
+                'customer_upi_id.regex' => 'Please enter a valid UPI ID.',
+            ]);
         }
 
         $cartItem = Cart::where('id', $request->cart_id)
@@ -691,6 +712,9 @@ class OrderController extends Controller
             'return_type'       => $request->request_type,
             'reason'            => $request->reason,
             'customer_comment'  => $request->notes,
+            'customer_upi_id'   => $order->payment_method === 'cod' && $request->request_type === 'return'
+                ? $request->customer_upi_id
+                : null,
             'images'            => $uploadedImages,
             'status'            => 'pending',
         ]);
@@ -705,7 +729,17 @@ class OrderController extends Controller
             'Your return/exchange request has been submitted successfully'
         );
 
-        return back();
+        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $activeReturnRequest = $order
+            ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
+            : null;
+        $latestReturnRequest = $order ? $order->returnRequests()->latest()->first() : null;
+
+        return redirect()->back()->with([
+            'order' => $order,
+            'activeReturnRequest' => $activeReturnRequest,
+            'latestReturnRequest' => $latestReturnRequest
+        ]);
     }
 
 
@@ -754,6 +788,94 @@ class OrderController extends Controller
         }
 
         request()->session()->flash('success', 'Exchange request rejected successfully.');
+        return back();
+    }
+
+    public function refundReturnRequest($id)
+    {
+        $returnRequest = OrderReturnRequest::with('order')->findOrFail($id);
+
+        if ($returnRequest->status !== 'return_delivered') {
+            request()->session()->flash('error', 'Refund is available only after return delivery.');
+            return back();
+        }
+
+        if (in_array($returnRequest->refund_status, ['processed', 'refunded'])) {
+            request()->session()->flash('error', 'Refund has already been processed.');
+            return back();
+        }
+
+        $order = $returnRequest->order;
+        if (!$order) {
+            request()->session()->flash('error', 'Order not found for this return request.');
+            return back();
+        }
+
+        if ($order->payment_method === 'razorpay') {
+            $razorpayController = new RazorpayController();
+            $refundResponse = $razorpayController->refundPayment($order->id);
+            $refundData = $refundResponse->getData(true);
+
+            if (!empty($refundData['status'])) {
+                $returnRequest->update([
+                    'refund_status' => 'processed',
+                    'refund_amount' => $order->total_amount,
+                    'refund_id' => $refundData['data']['id'] ?? null,
+                    'refund_payload' => $refundData,
+                    'refunded_at' => now(),
+                ]);
+
+                $order->payment_status = 'refunded';
+                $order->save();
+
+                request()->session()->flash('success', 'Razorpay refund processed successfully.');
+                return back();
+            }
+
+            request()->session()->flash('error', $refundData['message'] ?? 'Razorpay refund failed.');
+            return back();
+        }
+
+        if ($order->payment_method === 'cod') {
+            request()->session()->flash('error', 'COD refunds must be processed manually using the customer UPI ID.');
+            return back();
+        }
+
+        request()->session()->flash('error', 'Refund is not available for this payment method.');
+        return back();
+    }
+
+    public function updateCodRefundStatus(Request $request, $id)
+    {
+        $request->validate([
+            'refund_status' => 'required|in:initiated,processed',
+        ]);
+
+        $returnRequest = OrderReturnRequest::with('order')->findOrFail($id);
+        $order = $returnRequest->order;
+
+        if (!$order || $order->payment_method !== 'cod') {
+            request()->session()->flash('error', 'Manual refund status is available only for COD orders.');
+            return back();
+        }
+
+        if ($returnRequest->status !== 'return_delivered') {
+            request()->session()->flash('error', 'Refund status can be updated only after return delivery.');
+            return back();
+        }
+
+        $returnRequest->update([
+            'refund_status' => $request->refund_status,
+            'refund_amount' => $order->total_amount,
+            'refunded_at' => $request->refund_status === 'processed' ? now() : null,
+        ]);
+
+        if ($request->refund_status === 'processed') {
+            $order->payment_status = 'refunded';
+            $order->save();
+        }
+
+        request()->session()->flash('success', 'COD refund status updated successfully.');
         return back();
     }
 

@@ -452,14 +452,14 @@ class ShiprocketService
                 "pickup_phone" => $order->phone,
 
                 // YOUR WAREHOUSE
-                "shipping_customer_name" => env('STORE_NAME'),
-                "shipping_address" => env('STORE_ADDRESS'),
-                "shipping_city" => env('STORE_CITY'),
-                "shipping_state" => env('STORE_STATE'),
+                "shipping_customer_name" => env('SHIPROCKET_STORE_NAME'),
+                "shipping_address" => env('SHIPROCKET_STORE_ADDRESS'),
+                "shipping_city" => env('SHIPROCKET_STORE_CITY'),
+                "shipping_state" => env('SHIPROCKET_STORE_STATE'),
                 "shipping_country" => "India",
-                "shipping_pincode" => env('STORE_PINCODE'),
-                "shipping_email" => env('STORE_EMAIL'),
-                "shipping_phone" => env('STORE_PHONE'),
+                "shipping_pincode" => env('SHIPROCKET_STORE_PINCODE'),
+                "shipping_email" => env('SHIPROCKET_STORE_EMAIL'),
+                "shipping_phone" => env('SHIPROCKET_STORE_PHONE'),
 
                 // ITEMS
                 "order_items" => $items,

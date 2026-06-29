@@ -86,11 +86,11 @@ class ShiprocketWebhookController extends Controller
         ]);
 
 
-        if ($status == 'return_picked_up') {
+        if (strtolower($status) == 'return_picked_up') {
             $returnRequest->pickup_completed_at = now();
         }
 
-        if ($status == 'refunded') {
+        if (strtolower($status) == 'refunded') {
             $returnRequest->refunded_at = now();
         }
 
@@ -105,6 +105,10 @@ class ShiprocketWebhookController extends Controller
         );
         // order deliverd on company then in razerpay call refund api when payment mode is online 
         //refundPayment --> call this function 
+        // if (strtolower($status) == 'return_delivered') {
+
+        // }
+
     }
 
     private function updateForwardOrder(array $payload)

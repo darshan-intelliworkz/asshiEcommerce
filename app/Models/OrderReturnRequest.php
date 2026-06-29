@@ -14,6 +14,7 @@ class OrderReturnRequest extends Model
         'return_type',
         'reason',
         'customer_comment',
+        'customer_upi_id',
         'admin_comment',
         'images',
         'status',
