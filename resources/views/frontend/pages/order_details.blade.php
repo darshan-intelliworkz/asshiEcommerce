@@ -32,18 +32,18 @@
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Order Status</h6>
-                    <h6><span class="badge badge-info">{{strtoupper($order->status) ?? '-'}}</span></h6>
+                    <h6><span class="badge badge-info">@if(isset($order->status)) {{strtoupper($order->status)}} @else {{''}} @endif</span></h6>
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Payment Status</h6>
-                    <h6><span class="badge badge-info">{{strtoupper($order->payment_status) ?? '-'}}</span></h6>
+                    <h6><span class="badge badge-info">@if(isset($order->payment_status)) {{strtoupper($order->payment_status) ?? '-'}} @else {{''}} @endif</span></h6>
                 </div>
 
                 <div class="d-flex flex-column">
                      @php
                         use Carbon\Carbon;
                         use App\Models\OrderReturnRequest;
-                        $deliveredDate = Carbon::parse($order->updated_at); // or delivered_at if you have that column
+                        $deliveredDate = isset($order->updated_at) ? Carbon::parse($order->updated_at) : null; // or delivered_at if you have that column
                         $returnExpiryDate = $deliveredDate->copy()->addDays(7);
                         $countReturnReqtuest = OrderReturnRequest::where('order_id', $order->id)->count();
                     @endphp
@@ -53,7 +53,7 @@
                         <h6><span class="badge badge-info">{{ strtoupper(str_replace('_', ' ', $latestReturnRequest->status)) }}</span></h6>
                     @endif
 
-                    @if($order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
+                    @if(isset($order->status) && $order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
                     @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
                         @if(now()->lessThanOrEqualTo($returnExpiryDate))
@@ -79,9 +79,10 @@
                             </button>
 
                         @endif
-                    @elseif($order->status == 'return request')
+                    {{-- @elseif(isset($order->status) && $order->status == 'return request') --}}
+                    @elseif(isset($order->status) && in_array($order->status, ['return request','return_pickup_generated']))
                         <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}} , 'Return Cancel')" >
-                            Return Request Cancell
+                            Cancel Return Request
                         </button>
                     @endif
                 </div>
@@ -121,7 +122,7 @@
                                     $item->color_img = $images[0] ?? null;
                                 }
                                 $price = json_decode($item->size_price,true) ?? [];
-                                if($item->order && strtolower($item->order->status) === 'delivered'){
+                                if($item->order && isset($item->order->status) && strtolower($item->order->status) === 'delivered'){
                                     $hasReviewed = \App\Models\ProductReview::where(['product_id' => $item->product_id, 'order_id' => $item->order_id, 'user_id' => $item->user_id])->exists();
                                     if($hasReviewed == false){
                                         $canReview = true; 
@@ -155,7 +156,7 @@
                                     <a href=""><p class="mb-0">Your Review</p></a>
                                 @endif --}}
                                 {{-- REVIEW SECTION --}}
-                                @if($item->order && strtolower($item->order->status) === 'delivered')
+                                @if($item->order && isset($item->order->status) && strtolower($item->order->status) === 'delivered')
                                     {{-- REVIEW SECTION --}}
                                     @if($canReview == true && $hasReviewed == false)
 

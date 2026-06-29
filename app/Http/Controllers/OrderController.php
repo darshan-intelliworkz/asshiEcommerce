@@ -459,7 +459,7 @@ class OrderController extends Controller
                 // $returnResponse = $shiprocketService->cancelShipmentOrder($shipmentDetails->shipment_order_id);
                 // $returnData = $returnResponse->getData(true);
                 // Log::channel('shiprocket')->info('Cancel Shipment Response', $returnData);
-                // if (!$returnData['status']) {
+                // if (!$cancelOrderData['status']) {
                 //     return response()->json([
                 //         'status' => false,
                 //         'message' => 'Failed to cancel order in Shiprocket'
@@ -469,7 +469,8 @@ class OrderController extends Controller
                 if($order->payment_method == 'cod'){
                     $order->status = 'cancel';
                     $order->save();
-
+                }
+            }
             return response()->json([
                 'status' => true,
                 'message' => 'Order cancelled successfully'
@@ -480,34 +481,21 @@ class OrderController extends Controller
             $refundResponse = $razorpayController->refundPayment($order->id);
             $refundResponseData = $refundResponse->getData(true);
 
-                    if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
-                        $order->status = 'cancel';
-                        $order->payment_status = 'refunded';
-                        $order->save();
+                if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
+                    $order->status = 'cancel';
+                    $order->payment_status = 'refunded';
+                    $order->save();
 
-                        return response()->json([
-                            'status' => true,
-                            'message' => 'Order cancelled and refund initiated successfully'
-                        ]);
-                    } else {
-                        return response()->json([
-                            'status' => false,
-                            'message' => 'Refund failed, order cancellation unsuccessful'
-                        ]);
-                    }
-                }
-                else{
+                    return response()->json([
+                        'status' => true,
+                        'message' => 'Order cancelled and refund initiated successfully'
+                    ]);
+                } else {
                     return response()->json([
                         'status' => false,
-                        'message' => 'Invalid payment method for cancellation'
+                        'message' => 'Refund failed, order cancellation unsuccessful'
                     ]);
                 }
-            }else{
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Something went wrong'
-                ]);
-            }
         }else{
             return response()->json([
                     'status' => false,
@@ -564,23 +552,15 @@ class OrderController extends Controller
             return back();
         }
 
-
         $uploadedImages = [];
-
         if ($request->hasFile('images')) {
-
             $destinationPath = public_path('return_order_images');
-
             if (!File::exists($destinationPath)) {
                 File::makeDirectory($destinationPath, 0755, true);
             }
-
             foreach ($request->file('images') as $image) {
-
                 $imageName = time() . '_' . rand(1111,9999) . '.' . $image->getClientOriginalExtension();
-
                 $image->move($destinationPath, $imageName);
-
                 $uploadedImages[] = 'return_order_images/' . $imageName;
             }
         }
@@ -605,10 +585,10 @@ class OrderController extends Controller
             $this->returnOrder($order->id, $returnRequest->id);
         }
 
-        request()->session()->flash(
-            'success',
-            'Your return/exchange request has been submitted successfully'
-        );
+        // request()->session()->flash(
+        //     'success',
+        //     'Your return/exchange request has been submitted successfully'
+        // );
 
         $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
         $activeReturnRequest = $order
@@ -982,7 +962,8 @@ class OrderController extends Controller
             'status' => 'delivered',
         ]);
         $shiprocketService = new ShiprocketService(new Client());
-        $cancelResponse = $shiprocketService->cancelShipmentOrder($returnRequest->shiprocket_return_order_id);
+        // $cancelResponse = $shiprocketService->cancelShipmentOrder($returnRequest->shiprocket_return_order_id);
+        $cancelResponse = $shiprocketService->cancelShipmentOrder($returnRequest);
         $cancelData = $cancelResponse->getData(true);
         Log::channel('shiprocket')->info('Cancel Return Order Response', $cancelData);
 

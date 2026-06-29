@@ -631,42 +631,6 @@ class ShiprocketService
             try {
                 $authToken = $this->getAuthToken();
                 $response = $this->client->post($this->url.'/orders/cancel', [
-
-    // order cancel request to shiprocket
-    // public function cancelShipmentOrder($shiprocketOrderId)
-    // {
-    //     try {
-    //         Log::channel('shiprocket')->info(
-    //             'Cancel Shipment Order Request',
-    //             ['shiprocket_order_id' => $shiprocketOrderId]
-    //         );
-    //         $authToken = $this->getAuthToken();
-
-    //         $response = $this->client->post(
-    //             $this->url . '/orders/cancel',
-    //             [
-                    //     'ids' => [(int) $orderId]
-                    //             ]
-                    //         ]);
-
-                    //         $data = json_decode($response->getBody()->getContents(), true);
-                    //         return response()->json([
-                    //             'status' => true,
-                    //             'shiprocket_response' => $data
-                    //         ]);
-                    //     } catch (\Exception $e) {
-                    //         \Log::error("Cancel Order Error: " . $e->getMessage());
-                    //         return response()->json([
-                    //             'status' => false,
-                    //             'error' => $e->getMessage()
-                    //         ], 500);
-                    //     }
-                    // }else{
-                    //     return response()->json([
-                    //         'status' => false,
-                    //         'shiprocket_response' => '',
-                    //     ], 500);
-
                     'headers' => [
                         'Content-Type' => 'application/json',
                         'Authorization' => 'Bearer ' . $authToken,
@@ -690,12 +654,117 @@ class ShiprocketService
                 'shiprocket_response' => $data
             ]);
 
-        } catch (\Exception $e) {
-            Log::channel('shiprocket')->error(
-                'Order Cancel Error: '.$e->getMessage(),
+            } catch (\Exception $e) {
+                Log::channel('shiprocket')->error(
+                    'Order Cancel Error: '.$e->getMessage(),
+                );
+
+                throw $e;
+            }
+        }
+    }
+
+    // order cancel request to shiprocket OLD
+    // public function cancelShipmentOrder($shiprocketOrderId)
+    // {
+    //     try {
+    //         Log::channel('shiprocket')->info(
+    //             'Cancel Shipment Order Request',
+    //             ['shiprocket_order_id' => $shiprocketOrderId]
+    //         );
+    //         $authToken = $this->getAuthToken();
+
+    //         $response = $this->client->post(
+    //             $this->url . '/orders/cancel',
+    //             [
+    //                 'headers' => [
+    //                     'Content-Type' => 'application/json',
+    //                     'Authorization' => 'Bearer ' . $authToken,
+    //                 ],
+    //                 'json' => [
+    //                     'ids' => [$shiprocketOrderId]
+    //                 ]
+    //             ]
+    //         );
+
+    //         $data = json_decode(
+    //             $response->getBody()->getContents(),
+    //             true
+    //         );
+    //         Log::channel('shiprocket')->info(
+    //             'Cancel Shipment Order Response',
+    //             $data
+    //         );
+    //         return response()->json([
+    //             'status' => true,
+    //             'shiprocket_response' => $data
+    //         ]);
+
+    //     } catch (\Exception $e) {
+    //         Log::channel('shiprocket')->error(
+    //             'Order Cancel Error: '.$e->getMessage(),
+    //         );
+
+    //         throw $e;
+    //     }
+    // }
+
+    // order cancel request to shiprocket NEW
+    public function cancelShipmentOrder($returnRequest)
+    {
+        try {
+            $authToken = $this->getAuthToken();
+            $endpoint = null;
+            $payload = [];
+
+            if ($returnRequest->awb_code) {
+                // Cancel return shipment
+                $endpoint = '/orders/cancel/shipment/awbs';
+                $payload = [
+                    'awbs' => [$returnRequest->awb_code]
+                ];
+
+            } elseif ($returnRequest->shiprocket_return_order_id) {
+
+                // Cancel return order
+                $endpoint = '/orders/cancel';
+                $payload = [
+                    'ids' => [$returnRequest->shiprocket_return_order_id]
+                ];
+
+            } else {
+                return [
+                    'status' => true,
+                    'message' => 'No Shiprocket cancellation required'
+                ];
+            }
+            $response = $this->client->post(
+                $this->url . $endpoint,
+                [
+                    'headers' => [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $authToken,
+                    ],
+                    'json' => $payload
+                ]
             );
 
-            throw $e;
+            return [
+                'status' => true,
+                'shiprocket_response' => json_decode(
+                    $response->getBody()->getContents(),
+                    true
+                )
+            ];
+        } catch (\Exception $e) {
+            Log::channel('shiprocket')->error(
+                'Cancel Return Error: '.$e->getMessage()
+            );
+
+            return [
+                'status' => false,
+                'message' => $e->getMessage()
+            ];
         }
     }
 }

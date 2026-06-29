@@ -140,37 +140,38 @@ class ShiprocketWebhookController extends Controller
             ]
         );
 
+        // TEMPORARY COMMENTED DUE TO THIS WILL CALL BY ADMIN AS OF NOW
         // order deliverd on company then in razerpay call refund api when payment mode is online 
         //refundPayment --> call this function
         $razorpayController = new RazorpayController();
         if ($returnRequest->order->payment_method == 'razorpay' && $status == 'return_delivered') {
-            // TEMPORARY COMMENTED DUE TO THIS WILL CALL BY ADMIN AS OF NOW
             // $razerpayrefund = $razorpayController->refundPayment($returnRequest->order->id);
             //     Log::channel('shiprocket')->info('Refund Initiated for Order ID: ' . $razerpayrefund);
         }
         
         // on cod order deliverd on company then in razerpay call refund api
         if ($returnRequest->order->payment_method == 'cod' && $status == 'return_delivered') {
-            $customerDeatils = $returnRequest->order;
-            Log::channel('shiprocket')->info('Customer Details: ' . json_encode($customerDeatils));
-            $fullname = $customerDeatils->first_name . ' ' . $customerDeatils->last_name;
-            $contact = $razorpayController->createContact(
-                $fullname,
-                $customerDeatils->email,
-                $customerDeatils->phone
-            );
-            Log::channel('shiprocket')->info('Contact Created with ID: ' . $contact);
+            // INSTEAD OR RAZORPAY PAYOUT AS OF NOW ADMIN WILL PAY MANUALLU VIA UPI ID
+            // $customerDeatils = $returnRequest->order;
+            // Log::channel('shiprocket')->info('Customer Details: ' . json_encode($customerDeatils));
+            // $fullname = $customerDeatils->first_name . ' ' . $customerDeatils->last_name;
+            // $contact = $razorpayController->createContact(
+            //     $fullname,
+            //     $customerDeatils->email,
+            //     $customerDeatils->phone
+            // );
+            // Log::channel('shiprocket')->info('Contact Created with ID: ' . $contact);
 
-            $fundAccount = $razorpayController->createUpiFundAccount(
-                $contact['id'],
-                $returnRequest->refund_upi_id
-            );
+            // $fundAccount = $razorpayController->createUpiFundAccount(
+            //     $contact['id'],
+            //     $returnRequest->refund_upi_id
+            // );
 
-            $payout = $razorpayController->createPayout(
-                $fundAccount['id'],
-                $returnRequest->refund_amount,
-                'RETURN_' . $returnRequest->id
-            );
+            // $payout = $razorpayController->createPayout(
+            //     $fundAccount['id'],
+            //     $returnRequest->refund_amount,
+            //     'RETURN_' . $returnRequest->id
+            // );
         }
         Log::channel('shiprocket')->info(
             'Refund Processed for Return Request ID: ' . $returnRequest->id
