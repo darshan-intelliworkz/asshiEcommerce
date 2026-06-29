@@ -181,6 +181,9 @@
                                         @if($request->admin_comment)
                                             <br><small>Admin: {{ $request->admin_comment }}</small>
                                         @endif
+                                        @if($order->payment_method == 'cod' && $request->return_type == 'return' && $request->customer_upi_id)
+                                            <br><small><strong>UPI ID:</strong> {{ $request->customer_upi_id }}</small>
+                                        @endif
                                     </td>
                                     <td>
                                         @if(is_array($request->images) && count($request->images))

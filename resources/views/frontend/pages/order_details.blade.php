@@ -51,6 +51,9 @@
                     @if(isset($latestReturnRequest) && $latestReturnRequest)
                         <h6>{{ ucfirst($latestReturnRequest->return_type) }} request status </h6>
                         <h6><span class="badge badge-info">{{ strtoupper(str_replace('_', ' ', $latestReturnRequest->status)) }}</span></h6>
+                        @if($order->payment_method == 'cod' && $latestReturnRequest->return_type == 'return' && $latestReturnRequest->customer_upi_id)
+                            <small class="d-block mt-1">Refund UPI ID: <strong>{{ $latestReturnRequest->customer_upi_id }}</strong></small>
+                        @endif
                     @endif
 
                     @if(isset($order->status) && $order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
@@ -196,7 +199,7 @@
                                                 <textarea name="review"
                                                         rows="3"
                                                         class="form-control"
-                                                        required></textarea>
+                                                        ></textarea>
                                             </div>
 
                                             <button type="submit" class="btn btn-sm btn-primary">
@@ -264,7 +267,7 @@
                                                         <textarea name="review"
                                                                 rows="3"
                                                                 class="form-control"
-                                                                required>{{ $review->review }}</textarea>
+                                                                >{{ $review->review }}</textarea>
                                                     </div>
  
                                                     <button class="btn btn-sm btn-success">
@@ -376,7 +379,7 @@
                                     <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                         UPI ID <span style="color:#e53935;">*</span>
                                     </label>
-                                    <input type="text" name="customer_upi_id" id="customer_upi_id" required
+                                    <input type="text" name="customer_upi_id" id="customer_upi_id"
                                         placeholder="Enter your UPI ID for refund"
                                         style="width:100%; padding:12px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; cursor:pointer; outline:none; display:block;">
                                     @if ($errors->has('customer_upi_id'))
@@ -393,11 +396,11 @@
                                 </label>
                                 <div class="return-type-options">
                                     <label class="return-type-option">
-                                        <input type="radio" name="request_type" value="return" required>
+                                        <input type="radio" name="request_type" value="return" >
                                         <span>Return</span>
                                     </label>
                                     <label class="return-type-option">
-                                        <input type="radio" name="request_type" value="exchange" required>
+                                        <input type="radio" name="request_type" value="exchange" >
                                         <span>Exchange</span>
                                     </label>
                                 </div>
@@ -425,7 +428,7 @@
                                             $modalPrice = json_decode($item->size_price,true) ?? [];
                                         @endphp
                                         <label class="return-product-option">
-                                            <input type="radio" name="cart_id" value="{{ $item->id }}" required>
+                                            <input type="radio" name="cart_id" value="{{ $item->id }}" >
                                             <img src="{{ $modalImage }}" alt="{{ $item->product->title ?? 'Product' }}">
                                             <span>
                                                 <strong>{{ $item->product->title ?? 'N/A' }}</strong>
@@ -441,7 +444,7 @@
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Reason <span style="color:#e53935;">*</span>
                                 </label>
-                                <textarea name="reason" rows="5" required
+                                <textarea name="reason" rows="5" 
                                     placeholder="Please explain your issue in detail..."
                                     style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; resize:vertical; outline:none; font-family:inherit; box-sizing:border-box; line-height:1.5; display:block;"></textarea>
                             </div>
@@ -453,7 +456,7 @@
                                     <span style="font-weight:400; color:#999;">(optional)</span>
                                 </label>
                                 <div style="position:relative; border:2px dashed #5db844; border-radius:14px; background:#f6fdf3; padding:40px 20px; text-align:center; cursor:pointer;">
-                                    <input type="file" name="images[]" id="returnImages" multiple accept="image/*"
+                                    <input type="file" name="images[]" id="returnImages" multiple accept="image/*" 
                                         style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
                                     <div>
                                         <i class="fa fa-cloud-upload" style="font-size:44px; color:#5db844; display:block; margin-bottom:12px;"></i>
@@ -688,6 +691,7 @@
 @endpush
 
 @push('scripts')
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
      @if ($errors->any())
         <script>
             $(document).ready(function () {
@@ -824,5 +828,46 @@
                 });
             }
         }
+
+        $(document).ready(function() {
+            $.validator.addMethod("requiredFile", function(value, element) {
+                return element.files && element.files.length > 0;
+            }, "Please upload Product Images.");
+
+            $('#returnExchangeForm').validate({
+                ignore: [], // Ensure hidden or absolutely positioned inputs are validated
+                rules: {
+                    request_type: { required: true },
+                    cart_id: { required: true },
+                    reason: { required: true },
+                    "images[]": { requiredFile: true },
+                    customer_upi_id: {
+                        required: function(element) {
+                            return $('input[name="request_type"]:checked').val() === 'return' && $('#customer_upi_id').length > 0;
+                        }
+                    }
+                },
+                messages: {
+                    request_type: { required: "Please select a Request Type." },
+                    cart_id: { required: "Please select a Product." },
+                    reason: { required: "Please provide a Reason." },
+                    "images[]": { requiredFile: "Please upload Product Images." },
+                    customer_upi_id: { required: "Please provide your UPI ID for COD refund." }
+                },
+                errorElement: "span",
+                errorClass: "text-danger d-block mt-2",
+                errorPlacement: function(error, element) {
+                    if (element.attr("name") == "request_type") {
+                        error.appendTo(element.closest('.return-type-options').parent());
+                    } else if (element.attr("name") == "cart_id") {
+                        error.appendTo(element.closest('.return-product-list').parent());
+                    } else if (element.attr("name") == "images[]") {
+                        error.insertAfter(element.parent());
+                    } else {
+                        error.insertAfter(element);
+                    }
+                }
+            });
+        });
     </script>
 @endpush
