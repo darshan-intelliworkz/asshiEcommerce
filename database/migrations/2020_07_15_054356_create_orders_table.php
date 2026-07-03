@@ -22,9 +22,9 @@ class CreateOrdersTable extends Migration
             $table->float('coupon')->nullable();
             $table->float('total_amount');
             $table->integer('quantity');
-            $table->enum('payment_method',['cod','paypal'])->default('cod');
-            $table->enum('payment_status',['paid','unpaid','cancelled', 'failed'])->default('unpaid');
-            $table->enum('status',['new','process','out for delivery','delivered','cancel'])->default('new');
+            $table->enum('payment_method',['cod','paypal', 'razorpay'])->default('cod');
+            $table->enum('payment_status',['paid','unpaid','cancelled', 'failed', 'refunded'])->default('unpaid');
+            $table->enum('status',['new','process','out for delivery','delivered','cancel', 'return request'])->default('new');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('SET NULL');
             $table->foreign('shipping_id')->references('id')->on('shippings')->onDelete('SET NULL');
             $table->string('first_name');
@@ -38,6 +38,7 @@ class CreateOrdersTable extends Migration
             $table->text('address1');
             $table->text('address2')->nullable();
             $table->string('total_gst_amount')->nullable();
+            $table->timestamp('delivered_at')->nullable();
             $table->timestamps();
         });
     }

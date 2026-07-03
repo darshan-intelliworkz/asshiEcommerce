@@ -137,78 +137,9 @@ class OrderController extends Controller
         }
         Cart::where('user_id', auth()->user()->id)->where('order_id', null)->update(['order_id' => $order->id]);
         
-        // GENERATE SHIPPING PROCESS WITH SHIPROCKET
-         if (strtolower($order->payment_method) == 'cod') {
-            $orderShipment = NULL;
-            $client = new \GuzzleHttp\Client(); 
+        if (strtolower($order->payment_method) == 'cod') {
             $shiprocketService = new ShiprocketService(new Client());
-            $orderResponse = $shiprocketService->createShipmentOrder($order);
-            $orderResponseData = $orderResponse->getData(true);
-           
-            if($orderResponseData['status'] == true && isset($orderResponseData['shiprocket_response']) && strtolower($orderResponseData['shiprocket_response']['status']) == 'new' && $orderResponseData['shiprocket_response']['status_code'] == 1){
-                $orderShipment = new ShipmentDetails();
-                $orderShipment->order_id = $order->id;
-                $orderShipment->order_number = $order->order_number;
-                $orderShipment->shipment_status = 'New';
-                $orderShipment->shipment_id = $orderResponseData['shiprocket_response']['shipment_id'] ?? NULL;
-                $orderShipment->shipment_order_id = $orderResponseData['shiprocket_response']['order_id'] ?? NULL;
-                $orderShipment->shipment_response = json_encode($orderResponseData) ?? NULL;
-                
-                // ASSIGN COURIER AWB NUMBER
-                $orderAwbResponse = $shiprocketService->assignCourierAwb($orderShipment->shipment_id);
-                $orderAwbResponseData = $orderAwbResponse->getData(true);
-                Log::info('Order AWB Response: ', $orderAwbResponseData);
-                if (isset($orderAwbResponseData['status'],$orderAwbResponseData['shiprocket_response']['awb_assign_status'],$orderAwbResponseData['shiprocket_response']['response']['data']['awb_code']) && $orderAwbResponseData['status'] === true && $orderAwbResponseData['shiprocket_response']['awb_assign_status'] == 1) {
-                    $orderShipment->shipment_awb = $orderAwbResponseData['shiprocket_response']['response']['data']['awb_code'] ?? '';
-
-                    // GENERATE LABEL
-                    $orderLabelGenerateResponse = $shiprocketService->generateLabel($orderShipment->shipment_id);
-                    $orderLabelGenerateResponseData = $orderLabelGenerateResponse->getData(true);
-                   Log::info('Order Label Generate Response: ', $orderLabelGenerateResponseData);
-                    if (isset($orderLabelGenerateResponseData['shiprocket_response']['label_created'],$orderLabelGenerateResponseData['shiprocket_response']['label_url']) && $orderLabelGenerateResponseData['shiprocket_response']['label_created'] == 1 && $orderLabelGenerateResponseData['shiprocket_response']['label_url'] !== '') {
-                        $orderShipment->label_pdf = $orderLabelGenerateResponseData['shiprocket_response']['label_url'] ?? NULL;
-                        
-                        // REQUEST FOR SHIPMENT PICKUP
-                        if($orderShipment->pickup_request_response == null){
-                            $orderShipmentPickupResponse = $shiprocketService->shipmentPickupRequest($orderShipment->shipment_id);
-                            $orderShipmentPickupResponseData = $orderShipmentPickupResponse->getData(true);
-                                Log::info('Order Shipment Pickup Response: ', $orderShipmentPickupResponseData);
-                            if (isset($orderShipmentPickupResponseData['shiprocket_response']['pickup_status'],$orderShipmentPickupResponseData['shiprocket_response']['response']['pickup_scheduled_date']) && $orderShipmentPickupResponseData['shiprocket_response']['pickup_status'] == 1) {
-                                $orderShipment->pickup_request_response = json_encode($orderShipmentPickupResponseData);
-                                $orderShipment->scheduled_at = $orderShipmentPickupResponseData['shiprocket_response']['response']['pickup_scheduled_date'] ?? NULL;
-                                // // GENERATE MANIFEAST
-                                // $orderGenerateMenifeastResponse = $shiprocketService->generateManifeast($orderShipment->shipment_id);
-                                // $orderGenerateMenifeastResponseData = $orderGenerateMenifeastResponse->getData(true);
-                            
-                                // if (isset($orderGenerateMenifeastResponseData['shiprocket_response']['status'],$orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url']) && $orderGenerateMenifeastResponseData['status'] === true && $orderGenerateMenifeastResponseData['shiprocket_response']['status'] == 1 && $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] !== '') {
-                                //     $orderShipment->manifest_url = $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] ?? NULL;
-                                //     $orderShipment->shipment_status = 'Pickup Scheduled';
-                                // }
-                            }
-                        }
-
-                        // GENERATE MANIFEAST
-                        $orderGenerateMenifeastResponse = $shiprocketService->generateManifeast($orderShipment->shipment_id);
-                        $orderGenerateMenifeastResponseData = $orderGenerateMenifeastResponse->getData(true);
-                            Log::info('Order Generate Manifest Response: ', $orderGenerateMenifeastResponseData);
-                        if (isset($orderGenerateMenifeastResponseData['shiprocket_response']['status'],$orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url']) && $orderGenerateMenifeastResponseData['status'] === true && $orderGenerateMenifeastResponseData['shiprocket_response']['status'] == 1 && $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] !== '') {
-                            $orderShipment->manifest_url = $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] ?? NULL;
-                            $orderShipment->shipment_status = 'Pickup Scheduled';
-                        }
-                        
-                        // GENERATE INVOICE
-                        $orderGenerateInvoiceResponse = $shiprocketService->generateInvoice($orderShipment->shipment_order_id);
-                        $orderGenerateInvoiceResponseData = $orderGenerateInvoiceResponse->getData(true);
-                        Log::info('Order Generate Invoice Response: ', $orderGenerateInvoiceResponseData);  
-                        if (isset($orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url']) && $orderGenerateInvoiceResponseData['status'] == true && $orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'] !== '') {
-                            $orderShipment->invoice_url = $orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'] ?? NULL;
-                        }
-                    }
-                }
-                $orderShipment->save();
-                $order->status = 'process';
-                $order->save(); 
-            }
+            $shiprocketService->createCompleteShipmentForOrder($order);
         }
 
 
@@ -263,6 +194,7 @@ class OrderController extends Controller
                 $product->stock -=$cart->quantity;
                 $product->save();
             }
+            $data['delivered_at'] = $order->delivered_at ?: now();
         }
         $status=$order->fill($data)->save();
         if($status){
@@ -302,7 +234,10 @@ class OrderController extends Controller
     public function orderTrack(){
         $orders = [];
         if(auth()->check()){
-            $orders = Order::select('id', 'order_number', 'status')->where('status', '!=', 'cancel')->where('user_id', auth()->user()->id)->orderBy('id', 'DESC')->get();
+            $orders = Order::select('id', 'order_number', 'status')
+                ->where('user_id', auth()->user()->id)
+                ->orderBy('id', 'DESC')
+                ->get();
         }
             
         return view('frontend.pages.order-track', compact('orders'));
@@ -349,7 +284,10 @@ class OrderController extends Controller
             ], 401);
         }
 
-        $order = Order::where('user_id', auth()->id())
+        $order = Order::with(['returnRequests' => function ($query) {
+                $query->latest('id');
+            }])
+            ->where('user_id', auth()->id())
             ->where('order_number', $request->order_number)
             ->first();
 
@@ -360,9 +298,17 @@ class OrderController extends Controller
             ]);
         }
 
+        $latestReturnRequest = $order->returnRequests->first();
+
         return response()->json([
             'status' => 'success',
-            'order_status' => $order->status
+            'order_status' => $order->status,
+            'return_request' => $latestReturnRequest ? [
+                'type' => $latestReturnRequest->return_type,
+                'status' => $latestReturnRequest->status,
+                'current_tracking_status' => $latestReturnRequest->current_tracking_status,
+                'refund_status' => $latestReturnRequest->refund_status,
+            ] : null,
         ]);
 
     }
@@ -408,8 +354,9 @@ class OrderController extends Controller
         return view('frontend.pages.myorders', compact('orders'));
     }
 
+
     public function orderDetails($id){
-        $order = Order::where('id', $id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
+        $order = Order::where('id', $id)->where('user_id', auth()->user()->id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
         $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
         $activeReturnRequest = $order
             ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
@@ -420,7 +367,7 @@ class OrderController extends Controller
     }
     
     public function orderUpdate(Request $request){
-        $order = Order::find($request->id);
+        $order = Order::where('id', $request->id)->where('user_id', auth()->user()->id)->first();
         if(!$order){
             return response()->json([
                 'status' => false,
@@ -434,6 +381,8 @@ class OrderController extends Controller
             return $this->returnOrder($request->id);
         } else if($request->status == 'Return Cancel') {
             return $this->cancelReturnRequest($request->id);
+        } else if($request->status == 'Exchange Cancel') {
+            return $this->cancelExchangeRequest($request->id);
          } else {
             return response()->json([
                 'status' => false,
@@ -445,32 +394,34 @@ class OrderController extends Controller
 
     public function cancelOrder($orderId){
         $order = Order::find($orderId);
+        if (!$order) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Order not found'
+            ]);
+        }
+
+        $cancelOrderData = null;
         $shipmentDetail = ShipmentDetails::where('order_id', $orderId)->first();
-        // // CALL CANCEL ORDER API FOR SHIPROCKET
-        if(isset($order) && isset($shipmentDetail) && $order->payment_method == 'cod' || ($order->payment_method == 'razorpay' && $order->payment_status == 'paid')){
+        if ($shipmentDetail && $shipmentDetail->shipment_order_id) {
             $shiprocketService = new ShiprocketService(new Client());
             $cancelOrder = $shiprocketService->createCancelOrder($shipmentDetail->shipment_order_id);
             $cancelOrderData = $cancelOrder->getData(true);
             Log::info('Cancel Order Response: ', $cancelOrderData);
-            if(isset($cancelOrderData['status']) && $cancelOrderData['status'] === true){
+        }
 
-                // $shipmentDetails = ShipmentDetails::where('order_id', $orderId)->first();
-                // $shiprocketService = new ShiprocketService(new Client());
-                // $returnResponse = $shiprocketService->cancelShipmentOrder($shipmentDetails->shipment_order_id);
-                // $returnData = $returnResponse->getData(true);
-                // Log::channel('shiprocket')->info('Cancel Shipment Response', $returnData);
-                // if (!$cancelOrderData['status']) {
-                //     return response()->json([
-                //         'status' => false,
-                //         'message' => 'Failed to cancel order in Shiprocket'
-                //     ]);
-                // }
+        if ($cancelOrderData && (!isset($cancelOrderData['status']) || $cancelOrderData['status'] !== true)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Order cancellation failed in Shiprocket'
+            ]);
+        }
 
-                if($order->payment_method == 'cod'){
-                    $order->status = 'cancel';
-                    $order->save();
-                }
-            }
+        if(isset($order) && $order->payment_method == 'cod'){
+            $order->status = 'cancel';
+            $order->payment_status = 'cancelled';
+            $order->save();
+
             return response()->json([
                 'status' => true,
                 'message' => 'Order cancelled successfully'
@@ -481,21 +432,30 @@ class OrderController extends Controller
             $refundResponse = $razorpayController->refundPayment($order->id);
             $refundResponseData = $refundResponse->getData(true);
 
-                if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
-                    $order->status = 'cancel';
-                    $order->payment_status = 'refunded';
-                    $order->save();
+            if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
+                $order->status = 'cancel';
+                $order->payment_status = 'refunded';
+                $order->save();
 
-                    return response()->json([
-                        'status' => true,
-                        'message' => 'Order cancelled and refund initiated successfully'
-                    ]);
-                } else {
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Refund failed, order cancellation unsuccessful'
-                    ]);
-                }
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Order cancelled and refund initiated successfully'
+                ]);
+            }
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Refund failed, order cancellation unsuccessful'
+            ]);
+        } else if($order->payment_method == 'razorpay' && $order->payment_status != 'paid') {
+            $order->status = 'cancel';
+            $order->payment_status = 'cancelled';
+            $order->save();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Order cancelled successfully'
+            ]);
         }else{
             return response()->json([
                     'status' => false,
@@ -513,19 +473,27 @@ class OrderController extends Controller
             'reason'        => 'required|string',
             'notes'         => 'nullable|string',
             'images'        => 'required|array|min:1',
-            'images.*'      => 'required|image|mimes:jpg,jpeg,png|max:2048',
+            'images.*'      => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'customer_upi_id' => 'nullable|string|max:100',
+        ], [
+            'images.required' => 'Please upload at least one product image.',
+            'images.array' => 'Please upload valid product images.',
+            'images.min' => 'Please upload at least one product image.',
+            'images.*.required' => 'Please upload at least one product image.',
+            'images.*.image' => 'Each uploaded file must be an image.',
+            'images.*.mimes' => 'Product images must be JPG, PNG, or WEBP files.',
+            'images.*.max' => 'Each product image must be 5 MB or smaller.',
         ]);
 
         $order = Order::where('id', $request->order_id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
         if (!$order) {
             request()->session()->flash('error', 'Order not found');
-            return back();
+            return back()->withInput()->with('return_exchange_modal', true);
         }
         
         if ($order->payment_method === 'cod' && $request->request_type === 'return') {
             $request->validate([                                        
-                'customer_upi_id' => ['required', 'string', 'max:100', 'regex:regex:/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/'],
+                'customer_upi_id' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/'],
             ], [
                 'customer_upi_id.required' => 'Please enter your UPI ID for COD refund.',
                 'customer_upi_id.regex' => 'Please enter a valid UPI ID.',
@@ -539,17 +507,27 @@ class OrderController extends Controller
 
         if (!$cartItem) {
             request()->session()->flash('error', 'Please select a valid product from this order.');
-            return back();
+            return back()->withInput()->with('return_exchange_modal', true);
         }
 
-        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $completedStatuses = [
+            'rejected',
+            'failed',
+            'refunded',
+            'return_delivered',
+            'received',
+            'completed',
+            'return request cancelled',
+            'exchange_rejected',
+            'exchange_cancelled',
+        ];
         $activeRequest = OrderReturnRequest::where('order_id', $order->id)
             ->whereNotIn('status', $completedStatuses)
             ->first();
 
         if ($activeRequest) {
             request()->session()->flash('error', 'A return/exchange request is already in progress for this order.');
-            return back();
+            return back()->withInput()->with('return_exchange_modal', true);
         }
 
         $uploadedImages = [];
@@ -578,23 +556,30 @@ class OrderController extends Controller
             'status'            => $request->request_type === 'exchange' ? 'exchange_requested' : 'pending',
         ]);
 
-        if ($request->request_type === 'exchange') {
-            $order->status = 'exchange requested';
-        } else {
-            $order->status = 'return request';
-        }
-        $order->save();
+        $flashType = 'success';
+        $flashMessage = 'Your ' . $request->request_type . ' request has been submitted successfully.';
 
         if($request->request_type == 'return'){
-            $this->returnOrder($order->id, $returnRequest->id);
+            $returnResponse = $this->returnOrder($order->id, $returnRequest->id);
+            $returnData = $returnResponse->getData(true);
+
+            if (empty($returnData['status'])) {
+                $flashType = 'error';
+                $flashMessage = $returnData['message'] ?? 'Your return request was saved, but return pickup could not be created. Please contact support.';
+            }
         }
 
-        // request()->session()->flash(
-        //     'success',
-        //     'Your return/exchange request has been submitted successfully'
-        // );
-
-        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $completedStatuses = [
+            'rejected',
+            'failed',
+            'refunded',
+            'return_delivered',
+            'received',
+            'completed',
+            'return request cancelled',
+            'exchange_rejected',
+            'exchange_cancelled',
+        ];
         $activeReturnRequest = $order
             ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
             : null;
@@ -603,7 +588,8 @@ class OrderController extends Controller
         return redirect()->back()->with([
             'order' => $order,
             'activeReturnRequest' => $activeReturnRequest,
-            'latestReturnRequest' => $latestReturnRequest
+            'latestReturnRequest' => $latestReturnRequest,
+            $flashType => $flashMessage,
         ]);
     }
 
@@ -621,66 +607,51 @@ class OrderController extends Controller
     {
         $returnRequest = OrderReturnRequest::where('return_type', 'exchange')->findOrFail($id);
 
-        if ($returnRequest->status !== 'exchange_requested' && $returnRequest->status !== 'pending') {
-            request()->session()->flash('error', 'This exchange request has already been processed.');
+        if (!in_array($returnRequest->status, ['exchange_requested', 'pending'])) {
+            session()->flash('error', 'This exchange request has already been processed.');
             return back();
         }
 
-        // 1. Create Return Pickup
-        $response = $this->returnOrder($returnRequest->order_id, $returnRequest->id);
-        $data = $response->getData(true);
+        try {
+            $shiprocketService = new ShiprocketService(new Client());
+            $response = $shiprocketService->createExchangeOrder($returnRequest);
+            $data = $response->getData(true);
 
-        if (empty($data['status'])) {
-            request()->session()->flash('error', $data['message'] ?? 'Failed to create return pickup with Shiprocket.');
-            return back();
-        }
+            if (empty($data['status'])) {
+                $returnRequest->update([
+                    'exchange_create_response' => $data,
+                    'error_response' => $data,
+                ]);
 
-        // 2. Clone Order for Replacement
-        $originalOrder = Order::with('cart')->findOrFail($returnRequest->order_id);
-        
-        $exchangeOrder = $originalOrder->replicate();
-        $exchangeOrder->order_number = 'EXC-' . strtoupper(\Illuminate\Support\Str::random(10));
-        $exchangeOrder->total_amount = 0;
-        $exchangeOrder->sub_total = 0;
-        $exchangeOrder->shiping_charges = 0;
-        $exchangeOrder->coupon = 0;
-        $exchangeOrder->payment_status = 'paid';
-        $exchangeOrder->status = 'process';
-        $exchangeOrder->save();
-        
-        if ($returnRequest->cart_id) {
-            $cartItem = Cart::findOrFail($returnRequest->cart_id);
-            $newCartItem = $cartItem->replicate();
-            $newCartItem->order_id = $exchangeOrder->id;
-            $newCartItem->price = 0;
-            $newCartItem->amount = 0;
-            $newCartItem->save();
-        } else {
-            foreach($originalOrder->cart as $cartItem) {
-                $newCartItem = $cartItem->replicate();
-                $newCartItem->order_id = $exchangeOrder->id;
-                $newCartItem->price = 0;
-                $newCartItem->amount = 0;
-                $newCartItem->save();
+                session()->flash('error', $data['message'] ?? 'Failed to create exchange order with Shiprocket.');
+                return back();
             }
+
+            $returnRequest->update([
+                'status' => 'exchange_approved',
+                'approved_at' => now(),
+                'exchange_approved_at' => now(),
+                'shiprocket_exchange_order_id' => $data['shiprocket_response']['order_id'] ?? null,
+                'exchange_shipment_id' => $data['shiprocket_response']['shipment_id'] ?? null,
+                'exchange_create_payload' => $data['payload'] ?? null,
+                'exchange_create_response' => $data,
+            ]);
+
+            session()->flash('success', 'Exchange request approved and Shiprocket exchange order created.');
+            return back();
+
+        } catch (\Exception $e) {
+            $returnRequest->update([
+                'error_response' => [
+                    'message' => $e->getMessage(),
+                    'line' => $e->getLine(),
+                    'file' => $e->getFile(),
+                ],
+            ]);
+
+            session()->flash('error', $e->getMessage());
+            return back();
         }
-
-        // 3. Create Forward Shipment for the Exchange Order
-        $shiprocketService = new \App\Services\ShiprocketService(new \GuzzleHttp\Client());
-        $shiprocketService->createShipmentOrder($exchangeOrder);
-        
-        // 4. Update the return request
-        $returnRequest->update([
-            'status' => 'exchange_approved',
-            'approved_at' => now(),
-            'exchange_order_id' => $exchangeOrder->id
-        ]);
-        
-        $originalOrder->status = 'exchange approved';
-        $originalOrder->save();
-
-        request()->session()->flash('success', 'Exchange request approved! Return pickup scheduled and replacement order created.');
-        return back();
     }
 
     public function rejectExchangeRequest(Request $request, $id)
@@ -702,19 +673,49 @@ class OrderController extends Controller
             'rejected_at' => now(),
         ]);
 
-        if ($returnRequest->order) {
-            $returnRequest->order->status = 'exchange request rejected';
-            $returnRequest->order->save();
-        }
-
         request()->session()->flash('success', 'Exchange request rejected successfully.');
         return back();
 
     }
 
+    private function calculateReturnRefundAmount(OrderReturnRequest $returnRequest): float
+    {
+        $order = $returnRequest->order;
+        if (!$order) {
+            return 0.0;
+        }
+
+        $cartItems = $order->cart_info;
+        $returnItems = $returnRequest->cart_id
+            ? $cartItems->where('id', $returnRequest->cart_id)
+            : $cartItems;
+
+        if ($returnItems->isEmpty()) {
+            return 0.0;
+        }
+
+        $orderItemsTotal = $cartItems->sum(function ($item) {
+            return (($item->price ?? 0) + ($item->gst_amt ?? 0)) * ($item->quantity ?? 1);
+        });
+
+        $returnItemsTotal = $returnItems->sum(function ($item) {
+            return (($item->price ?? 0) + ($item->gst_amt ?? 0)) * ($item->quantity ?? 1);
+        });
+
+        if ($orderItemsTotal <= 0) {
+            return round((float) $returnItems->sum('amount'), 2);
+        }
+
+        $ratio = $returnItemsTotal / $orderItemsTotal;
+        $couponShare = ((float) ($order->coupon ?? 0)) * $ratio;
+        $shippingShare = ((float) ($order->shiping_charges ?? 0)) * $ratio;
+
+        return round(max(0, $returnItemsTotal - $couponShare + $shippingShare), 2);
+    }
+
     public function refundReturnRequest($id)
     {
-        $returnRequest = OrderReturnRequest::with('order')->findOrFail($id);
+        $returnRequest = OrderReturnRequest::with(['order.cart_info'])->findOrFail($id);
 
         if ($returnRequest->status !== 'return_delivered') {
             request()->session()->flash('error', 'Refund is available only after return delivery.');
@@ -732,15 +733,17 @@ class OrderController extends Controller
             return back();
         }
 
+        $refundAmount = $this->calculateReturnRefundAmount($returnRequest);
+
         if ($order->payment_method === 'razorpay') {
             $razorpayController = new RazorpayController();
-            $refundResponse = $razorpayController->refundPayment($order->id);
+            $refundResponse = $razorpayController->refundPayment($order->id, $refundAmount);
             $refundData = $refundResponse->getData(true);
 
             if (!empty($refundData['status'])) {
                 $returnRequest->update([
                     'refund_status' => 'processed',
-                    'refund_amount' => $order->total_amount,
+                    'refund_amount' => $refundAmount,
                     'refund_id' => $refundData['data']['id'] ?? null,
                     'refund_payload' => $refundData,
                     'refunded_at' => now(),
@@ -772,7 +775,7 @@ class OrderController extends Controller
             'refund_status' => 'required|in:initiated,processed',
         ]);
 
-        $returnRequest = OrderReturnRequest::with('order')->findOrFail($id);
+        $returnRequest = OrderReturnRequest::with(['order.cart_info'])->findOrFail($id);
         $order = $returnRequest->order;
 
         if (!$order || $order->payment_method !== 'cod') {
@@ -787,7 +790,7 @@ class OrderController extends Controller
 
         $returnRequest->update([
             'refund_status' => $request->refund_status,
-            'refund_amount' => $order->total_amount,
+            'refund_amount' => $this->calculateReturnRefundAmount($returnRequest),
             'refunded_at' => $request->refund_status === 'processed' ? now() : null,
         ]);
 
@@ -805,23 +808,21 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-
             Log::info('Initiating return process for Order ID: ' . $orderId);
-
             $order = Order::find($orderId);
-
             if (!$order) {
+                DB::rollBack();
                 return response()->json([
                     'status' => false,
                     'message' => 'Order not found'
                 ]);
             }
-
             $returnRequest = $returnRequestId
                 ? OrderReturnRequest::where('order_id', $orderId)->find($returnRequestId)
                 : OrderReturnRequest::where('order_id', $orderId)->latest()->first();
 
             if (!$returnRequest) {
+                DB::rollBack();
                 return response()->json([
                     'status' => false,
                     'message' => 'Return request not found'
@@ -829,6 +830,7 @@ class OrderController extends Controller
             }
 
             if (!empty($returnRequest->shiprocket_return_order_id)) {
+                DB::rollBack();
                 return response()->json([
                     'status' => false,
                     'message' => 'Return already processed'
@@ -844,7 +846,7 @@ class OrderController extends Controller
                 !isset($returnData['status']) ||
                 $returnData['status'] !== true
             ) {
-
+                DB::rollBack();
                 $returnRequest->update([
                     'status' => 'failed',
                     'error_response' => $returnData,
@@ -906,7 +908,6 @@ class OrderController extends Controller
                 $trackData = $trackResponse->getData(true);
                 Log::channel('shiprocket')->info('Return Order Tracking Response', $trackData);
             
-
                 if (
                     isset($trackData['status']) &&
                     $trackData['status'] === true
@@ -997,7 +998,20 @@ class OrderController extends Controller
 
     public function cancelReturnRequest($orderId)
     {
-        $returnRequest = OrderReturnRequest::where('order_id', $orderId)->first();
+        $completedStatuses = [
+            'rejected',
+            'failed',
+            'refunded',
+            'return_delivered',
+            'received',
+            'completed',
+            'return request cancelled',
+        ];
+        $returnRequest = OrderReturnRequest::where('order_id', $orderId)
+        ->where('return_type', 'return')
+        ->whereNotIn('status', $completedStatuses)
+        ->latest('id')
+        ->first();
 
         $order = Order::find($orderId);
 
@@ -1024,7 +1038,14 @@ class OrderController extends Controller
         $shiprocketService = new ShiprocketService(new Client());
         // $cancelResponse = $shiprocketService->cancelShipmentOrder($returnRequest->shiprocket_return_order_id);
         $cancelResponse = $shiprocketService->cancelShipmentOrder($returnRequest);
-        $cancelData = $cancelResponse->getData(true);
+        if (!is_array($cancelResponse)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid response from Shiprocket'
+            ]);
+        }
+        $cancelData = $cancelResponse;
+        // $cancelData = $cancelResponse->getData(true);
         Log::channel('shiprocket')->info('Cancel Return Order Response', $cancelData);
 
         if (isset($cancelData['status']) && $cancelData['status'] === true) {
@@ -1042,5 +1063,94 @@ class OrderController extends Controller
                 'message' => 'Failed to cancel return request in Shiprocket'
             ]);
         }
+    }
+
+    public function cancelExchangeRequest($orderId)
+    {
+        $order = Order::where('id', $orderId)
+            ->where('user_id', auth()->id())
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Order not found'
+            ]);
+        }
+
+        $exchangeRequest = OrderReturnRequest::where('order_id', $order->id)
+            ->where('return_type', 'exchange')
+            ->latest()
+            ->first();
+
+        if (!$exchangeRequest) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Exchange request not found'
+            ]);
+        }
+
+        $blockedStatuses = [
+            'exchange_pickup_generated',
+            'exchange_picked_up',
+            'exchange_in_transit',
+            'exchange_return_delivered',
+            'exchange_qc_passed',
+            'exchange_qc_failed',
+            'exchange_out_for_delivery',
+            'exchange_delivered',
+            'exchange_cancelled',
+        ];
+
+        if (in_array($exchangeRequest->status, $blockedStatuses)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Exchange request cannot be cancelled after pickup is generated.'
+            ]);
+        }
+
+        if (!in_array($exchangeRequest->status, ['pending', 'exchange_requested', 'exchange_approved'])) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Exchange request cannot be cancelled at this stage.'
+            ]);
+        }
+
+        $shiprocketCancelData = null;
+
+        if ($exchangeRequest->shiprocket_exchange_order_id || $exchangeRequest->awb_code) {
+            $shiprocketService = new ShiprocketService(new Client());
+            $shiprocketCancelData = $shiprocketService->cancelShipmentOrder($exchangeRequest);
+
+            if (
+                is_array($shiprocketCancelData) &&
+                isset($shiprocketCancelData['status']) &&
+                $shiprocketCancelData['status'] === false
+            ) {
+                $exchangeRequest->update([
+                    'error_response' => $shiprocketCancelData,
+                ]);
+
+                return response()->json([
+                    'status' => false,
+                    'message' => $shiprocketCancelData['message'] ?? 'Failed to cancel exchange order in Shiprocket.'
+                ]);
+            }
+        }
+
+        $exchangeRequest->update([
+            'status' => 'exchange_cancelled',
+            'error_response' => null,
+            'tracking_payload' => $shiprocketCancelData,
+        ]);
+
+        $order->update([
+            'status' => 'delivered',
+        ]);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Exchange request cancelled successfully'
+        ]);
     }
 }

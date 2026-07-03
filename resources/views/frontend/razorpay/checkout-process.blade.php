@@ -46,6 +46,12 @@
                         order_number: "{{ $order->order_number }}"
                     })
                 })
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return res.json();
+                })
                 .then(data => {  
                     document.getElementById('payment-loader').style.display = 'none'; // hide loader
                     if (data.status) {
@@ -76,7 +82,7 @@
                             order_number: "{{ $order->order_number }}"
                         })
                     }).then(() => {
-                        window.location.href = "{{ route('razorpay.failed') }}";
+                        window.location.href = "{{ route('razorpay.failed', ['order_number' => $order->order_number]) }}";
                     });
                 }
             }

@@ -3,9 +3,11 @@
 namespace App\Services;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Order;
 use App\Models\OrderReturnRequest;
+use App\Models\ShipmentDetails;
 
 class ShiprocketService
 {
@@ -187,6 +189,135 @@ class ShiprocketService
                     : $e->getMessage()
             ], 500);
         } 
+    }
+
+    public function createCompleteShipmentForOrder(Order $order)
+    {
+        return DB::transaction(function () use ($order) {
+            $shipment = ShipmentDetails::where('order_id', $order->id)->lockForUpdate()->first();
+            if (!$shipment) {
+                $shipment = new ShipmentDetails(['order_id' => $order->id]);
+            }
+            $shipment->order_number = $order->order_number;
+            if (!$shipment->exists) {
+                $shipment->save();
+            }
+
+            if (empty($shipment->shipment_id) || empty($shipment->shipment_order_id)) {
+                $orderResponse = $this->createShipmentOrder($order);
+                $orderResponseData = $orderResponse->getData(true);
+
+                Log::info('Order Shipment Response: ', $orderResponseData);
+
+                $shiprocketResponse = $orderResponseData['shiprocket_response'] ?? [];
+                $isCreated = !empty($orderResponseData['status'])
+                    && strtolower($shiprocketResponse['status'] ?? '') === 'new'
+                    && (int) ($shiprocketResponse['status_code'] ?? 0) === 1;
+
+                if (!$isCreated) {
+                    $shipment->shipment_response = json_encode($orderResponseData);
+                    $shipment->save();
+
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Shiprocket order could not be created.',
+                        'shiprocket_response' => $orderResponseData,
+                    ]);
+                }
+
+                $shipment->shipment_status = 'New';
+                $shipment->shipment_id = $shiprocketResponse['shipment_id'] ?? null;
+                $shipment->shipment_order_id = $shiprocketResponse['order_id'] ?? null;
+                $shipment->shipment_response = json_encode($orderResponseData);
+                $shipment->save();
+            }
+
+            if (empty($shipment->shipment_awb)) {
+                $orderAwbResponse = $this->assignCourierAwb($shipment->shipment_id);
+                $orderAwbResponseData = $orderAwbResponse->getData(true);
+
+                Log::info('Order AWB Response: ', $orderAwbResponseData);
+
+                if (
+                    !empty($orderAwbResponseData['status'])
+                    && (int) ($orderAwbResponseData['shiprocket_response']['awb_assign_status'] ?? 0) === 1
+                ) {
+                    $awbData = $orderAwbResponseData['shiprocket_response']['response']['data'] ?? [];
+                    $shipment->shipment_awb = $awbData['awb_code'] ?? '';
+                    $shipment->save();
+                }
+            }
+
+            if (!empty($shipment->shipment_awb) && empty($shipment->label_pdf)) {
+                $orderLabelGenerateResponse = $this->generateLabel($shipment->shipment_id);
+                $orderLabelGenerateResponseData = $orderLabelGenerateResponse->getData(true);
+
+                Log::info('Order Label Generate Response: ', $orderLabelGenerateResponseData);
+
+                if (
+                    (int) ($orderLabelGenerateResponseData['shiprocket_response']['label_created'] ?? 0) === 1
+                    && !empty($orderLabelGenerateResponseData['shiprocket_response']['label_url'])
+                ) {
+                    $shipment->label_pdf = $orderLabelGenerateResponseData['shiprocket_response']['label_url'];
+                    $shipment->save();
+                }
+            }
+
+            if (!empty($shipment->label_pdf) && empty($shipment->pickup_request_response)) {
+                $orderShipmentPickupResponse = $this->shipmentPickupRequest($shipment->shipment_id);
+                $orderShipmentPickupResponseData = $orderShipmentPickupResponse->getData(true);
+
+                Log::info('Order Shipment Pickup Response: ', $orderShipmentPickupResponseData);
+
+                if ((int) ($orderShipmentPickupResponseData['shiprocket_response']['pickup_status'] ?? 0) === 1) {
+                    $shipment->pickup_request_response = json_encode($orderShipmentPickupResponseData);
+                    $shipment->scheduled_at = $orderShipmentPickupResponseData['shiprocket_response']['response']['pickup_scheduled_date'] ?? null;
+                    $shipment->save();
+                }
+            }
+
+            if (!empty($shipment->label_pdf) && empty($shipment->manifest_url)) {
+                $orderGenerateMenifeastResponse = $this->generateManifeast($shipment->shipment_id);
+                $orderGenerateMenifeastResponseData = $orderGenerateMenifeastResponse->getData(true);
+
+                Log::info('Order Generate Manifest Response: ', $orderGenerateMenifeastResponseData);
+
+                if (
+                    !empty($orderGenerateMenifeastResponseData['status'])
+                    && (int) ($orderGenerateMenifeastResponseData['shiprocket_response']['status'] ?? 0) === 1
+                    && !empty($orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'])
+                ) {
+                    $shipment->manifest_url = $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'];
+                    $shipment->shipment_status = 'Pickup Scheduled';
+                    $shipment->save();
+                }
+            }
+
+            if (!empty($shipment->shipment_order_id) && empty($shipment->invoice_url)) {
+                $orderGenerateInvoiceResponse = $this->generateInvoice($shipment->shipment_order_id);
+                $orderGenerateInvoiceResponseData = $orderGenerateInvoiceResponse->getData(true);
+
+                Log::info('Order Generate Invoice Response: ', $orderGenerateInvoiceResponseData);
+
+                if (
+                    !empty($orderGenerateInvoiceResponseData['status'])
+                    && !empty($orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'])
+                ) {
+                    $shipment->invoice_url = $orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'];
+                    $shipment->save();
+                }
+            }
+
+            if (!empty($shipment->shipment_order_id)) {
+                $order->status = 'process';
+                $order->save();
+            }
+
+            return response()->json([
+                'status' => true,
+                'shipment' => $shipment->fresh(),
+            ]);
+        });
     }
 
     public function assignCourierAwb($shipmentId){
@@ -718,10 +849,18 @@ class ShiprocketService
             $payload = [];
 
             if ($returnRequest->awb_code) {
-                // Cancel return shipment
+                // Cancel return/exchange shipment
                 $endpoint = '/orders/cancel/shipment/awbs';
                 $payload = [
                     'awbs' => [$returnRequest->awb_code]
+                ];
+
+            } elseif ($returnRequest->return_type === 'exchange' && $returnRequest->shiprocket_exchange_order_id) {
+
+                // Cancel exchange order
+                $endpoint = '/orders/cancel';
+                $payload = [
+                    'ids' => [$returnRequest->shiprocket_exchange_order_id]
                 ];
 
             } elseif ($returnRequest->shiprocket_return_order_id) {
@@ -748,14 +887,16 @@ class ShiprocketService
                     'json' => $payload
                 ]
             );
+            $data = json_decode(
+                $response->getBody()->getContents(),
+                true
+            );
 
-            return [
+            return response()->json([
                 'status' => true,
-                'shiprocket_response' => json_decode(
-                    $response->getBody()->getContents(),
-                    true
-                )
-            ];
+                'shiprocket_response' => $data
+            ]);
+            
         } catch (\Exception $e) {
             Log::channel('shiprocket')->error(
                 'Cancel Return Error: '.$e->getMessage()
@@ -765,6 +906,215 @@ class ShiprocketService
                 'status' => false,
                 'message' => $e->getMessage()
             ];
+        }
+    }
+
+
+    public function createExchangeOrder($returnRequest)
+    {
+        try {
+            $returnRequest = OrderReturnRequest::with([
+                'order.cart_info.product',
+                'order.cart_info.color',
+                'cart.product',
+                'cart.color',
+            ])->findOrFail($returnRequest->id);
+
+            if ($returnRequest->return_type !== 'exchange') {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'This request is not an exchange request.',
+                ], 422);
+            }
+
+            if ($returnRequest->shiprocket_exchange_order_id || $returnRequest->exchange_shipment_id) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Shiprocket exchange order already exists for this request.',
+                ], 422);
+            }
+
+            $originalOrder = $returnRequest->order;
+
+            if (!$originalOrder) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Original order not found.',
+                ], 404);
+            }
+
+            $cartItems = $returnRequest->cart_id
+                ? $originalOrder->cart_info->where('id', $returnRequest->cart_id)
+                : $originalOrder->cart_info;
+
+            if ($cartItems->isEmpty()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No exchange product found for this request.',
+                ], 422);
+            }
+
+            $sellerPickupLocationId = env('SHIPROCKET_SELLER_PICKUP_LOCATION_ID');
+            $sellerShippingLocationId = env('SHIPROCKET_SELLER_SHIPPING_LOCATION_ID', $sellerPickupLocationId);
+            $returnReasonId = (int) env('SHIPROCKET_EXCHANGE_RETURN_REASON_ID', 29);
+            $channelId = env('SHIPROCKET_CHANNEL_ID');
+
+            if (empty($sellerPickupLocationId) || empty($sellerShippingLocationId)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Shiprocket seller pickup/shipping location IDs are not configured. Please set SHIPROCKET_SELLER_PICKUP_LOCATION_ID and SHIPROCKET_SELLER_SHIPPING_LOCATION_ID in .env.',
+                ], 422);
+            }
+
+            if (!in_array($returnReasonId, [29, 30, 31, 32, 33, 34, 28, 27, 35, 36, 26, 25], true)) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Invalid Shiprocket exchange return reason ID. Use one of: 29, 30, 31, 32, 33, 34, 28, 27, 35, 36, 26, 25.',
+                ], 422);
+            }
+
+            $items = [];
+
+            foreach ($cartItems as $item) {
+                $size = null;
+
+                if (!empty($item->size_price)) {
+                    $sizeData = json_decode($item->size_price, true);
+                    $size = $sizeData['size'] ?? null;
+                }
+
+                $colorName = optional($item->color)->color_name;
+                $productName = $item->product->title ?? 'Product';
+
+                if ($colorName) {
+                    $productName .= ' | Color: ' . $colorName;
+                }
+
+                if ($size) {
+                    $productName .= ' | Size: ' . $size;
+                }
+
+                $sku = 'EXCHANGE_' . $item->product_id . ($size ? '_' . $size : '');
+
+                $items[] = [
+                    'name' => $productName,
+                    'sku' => $sku,
+                    'units' => $item->quantity,
+                    'selling_price' => $item->price + $item->gst_amt,
+                    'discount' => 0,
+                    'tax' => $item->gst_percent ?? 0,
+                    'exchange_item_sku' => $sku,
+                    'exchange_item_name' => $productName,
+                ];
+            }
+
+            $subTotal = $cartItems->sum(function ($item) {
+                return ($item->price + $item->gst_amt) * $item->quantity;
+            });
+
+            $paymentMethod = strtolower((string) $originalOrder->payment_method) === 'cod'
+                ? 'COD'
+                : 'Prepaid';
+
+            $payload = [
+                'exchange_order_id' => 'EXCHANGE_' . $originalOrder->order_number . '_' . $returnRequest->id,
+                'return_order_id' => 'RETURN_' . $originalOrder->order_number . '_' . $returnRequest->id,
+                'order_date' => now()->format('Y-m-d H:i'),
+                'seller_pickup_location_id' => $sellerPickupLocationId,
+                'seller_shipping_location_id' => $sellerShippingLocationId,
+
+                'buyer_shipping_first_name' => $originalOrder->first_name ?? '',
+                'buyer_shipping_last_name' => $originalOrder->last_name ?? '',
+                'buyer_shipping_address' => $originalOrder->address1 ?? '',
+                'buyer_shipping_address_2' => $originalOrder->address2 ?? '',
+                'buyer_shipping_city' => $originalOrder->city ?? 'Delhi',
+                'buyer_shipping_state' => $originalOrder->state ?? 'Delhi',
+                'buyer_shipping_country' => $originalOrder->country ?? 'IN',
+                'buyer_shipping_pincode' => $originalOrder->post_code ?? '',
+                'buyer_shipping_email' => $originalOrder->email,
+                'buyer_shipping_phone' => $originalOrder->phone,
+
+                'buyer_pickup_first_name' => $originalOrder->first_name ?? '',
+                'buyer_pickup_last_name' => $originalOrder->last_name ?? '',
+                'buyer_pickup_address' => $originalOrder->address1 ?? '',
+                'buyer_pickup_address_2' => $originalOrder->address2 ?? '',
+                'buyer_pickup_city' => $originalOrder->city ?? 'Delhi',
+                'buyer_pickup_state' => $originalOrder->state ?? 'Delhi',
+                'buyer_pickup_country' => $originalOrder->country ?? 'IN',
+                'buyer_pickup_pincode' => $originalOrder->post_code,
+                'buyer_pickup_email' => $originalOrder->email,
+                'buyer_pickup_phone' => $originalOrder->phone,
+
+                'order_items' => $items,
+                'payment_method' => $paymentMethod,
+                'shipping_charges' => 0,
+                'giftwrap_charges' => 0,
+                'transaction_charges' => 0,
+                'total_discount' => 0,
+                'sub_total' => $subTotal,
+                'return_reason' => $returnReasonId,
+                'return_length' => 10,
+                'return_breadth' => 10,
+                'return_height' => 10,
+                'return_weight' => 0.5,
+                'exchange_length' => 10,
+                'exchange_breadth' => 10,
+                'exchange_height' => 10,
+                'exchange_weight' => 0.5,
+            ];
+
+            if (!empty($channelId)) {
+                $payload['channel_id'] = (int) $channelId;
+            }
+
+            $authToken = $this->getAuthToken();
+
+            Log::channel('shiprocket')->info('Exchange Order Payload', $payload);
+
+            $response = $this->client->post($this->url . '/orders/create/exchange', [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $authToken,
+                    'Content-Type' => 'application/json',
+                ],
+                'json' => $payload,
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            Log::channel('shiprocket')->info('Exchange Order Response', $data);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Shiprocket exchange order created successfully.',
+                'shiprocket_response' => $data,
+                'payload' => $payload,
+            ]);
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            $error = $e->getResponse()
+                ? json_decode($e->getResponse()->getBody()->getContents(), true)
+                : $e->getMessage();
+
+            Log::channel('shiprocket')->error('Exchange Order Error: ' . $e->getMessage(), [
+                'return_request_id' => $returnRequest->id ?? null,
+                'error' => $error,
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to create exchange order with Shiprocket.',
+                'error' => $error,
+            ], 500);
+        } catch (\Exception $e) {
+            Log::channel('shiprocket')->error('Exchange Order Error: ' . $e->getMessage(), [
+                'return_request_id' => $returnRequest->id ?? null,
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }
