@@ -98,6 +98,9 @@ class OrderController extends Controller
             }
         }
         $order_data['total_amount'] += $gstTotal;
+        $amount = round($order_data['total_amount']);
+        $order_data['total_amount'] = (int)$amount;
+        
         // return $order_data['total_amount'];
         $order_data['status']="new";
         if(request('payment_method')=='paypal'){
@@ -148,7 +151,7 @@ class OrderController extends Controller
             return $razorpayController->pay($order->id);
         }
         // dd($users);        
-        request()->session()->flash('success','Your product successfully placed in order');
+        request()->session()->flash('success','Your order placed successfully');
         return redirect()->route('home');
     }
 
