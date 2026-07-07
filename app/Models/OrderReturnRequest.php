@@ -31,7 +31,6 @@ class OrderReturnRequest extends Model
         'refund_amount',
         'refund_id',
         'exchange_order_id',
-        'shiprocket_exchange_order_id',
         'exchange_shipment_id',
         'create_return_payload',
         'create_return_response',

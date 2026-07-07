@@ -14,5 +14,6 @@ class VerifyCsrfToken extends Middleware
     protected $except = [
         'shiprocket/webhook',
         'razorpay/webhook',
+        'courier/events'
     ];
 }

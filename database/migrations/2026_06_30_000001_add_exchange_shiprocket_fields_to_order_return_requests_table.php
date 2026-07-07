@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('order_return_requests', function (Blueprint $table) {
-            $table->bigInteger('shiprocket_exchange_order_id')->nullable()->after('exchange_order_id');
-            $table->bigInteger('exchange_shipment_id')->nullable()->after('shiprocket_exchange_order_id');
+            $table->bigInteger('exchange_order_id')->nullable()->after('exchange_order_id');
+            $table->bigInteger('exchange_shipment_id')->nullable()->after('exchange_order_id');
             $table->json('exchange_create_payload')->nullable()->after('create_return_response');
             $table->json('exchange_create_response')->nullable()->after('exchange_create_payload');
             $table->timestamp('exchange_approved_at')->nullable()->after('approved_at');
@@ -21,7 +21,7 @@ return new class extends Migration
     {
         Schema::table('order_return_requests', function (Blueprint $table) {
             $table->dropColumn([
-                'shiprocket_exchange_order_id',
+                'exchange_order_id',
                 'exchange_shipment_id',
                 'exchange_create_payload',
                 'exchange_create_response',

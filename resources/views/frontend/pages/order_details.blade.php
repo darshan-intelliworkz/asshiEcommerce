@@ -71,7 +71,7 @@
                         @endif
                     @endif
 
-                    @if(isset($order->status) && $order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
+                    @if(isset($order->status) && in_array($order->status, ['process', 'new']))
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
                     @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
                         @if($returnExpiryDate && now()->lessThanOrEqualTo($returnExpiryDate))

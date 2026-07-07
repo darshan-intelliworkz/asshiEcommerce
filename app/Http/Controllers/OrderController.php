@@ -357,7 +357,8 @@ class OrderController extends Controller
 
     public function orderDetails($id){
         $order = Order::where('id', $id)->where('user_id', auth()->user()->id)->with(['cart.product', 'cart.color', 'user', 'returnRequests.cart.product'])->first();
-        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed'];
+        $completedStatuses = ['rejected', 'failed', 'refunded', 'return_delivered', 'received', 'completed', 'return_cancelled', 'exchange_rejected', 'exchange_cancelled'];
+
         $activeReturnRequest = $order
             ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
             : null;
@@ -410,7 +411,7 @@ class OrderController extends Controller
             Log::info('Cancel Order Response: ', $cancelOrderData);
         }
 
-        if ($cancelOrderData && (!isset($cancelOrderData['status']) || $cancelOrderData['status'] !== true)) {
+        if ($cancelOrderData != null && (!isset($cancelOrderData['status']) || $cancelOrderData['status'] !== true)) {
             return response()->json([
                 'status' => false,
                 'message' => 'Order cancellation failed in Shiprocket'
@@ -429,7 +430,7 @@ class OrderController extends Controller
         }
         else if($order->payment_method == 'razorpay' && $order->payment_status == 'paid'){
             $razorpayController = new RazorpayController();
-            $refundResponse = $razorpayController->refundPayment($order->id);
+            $refundResponse = $razorpayController->refundPayment($order->id, $order->total_amount);
             $refundResponseData = $refundResponse->getData(true);
 
             if (isset($refundResponseData['status']) && $refundResponseData['status'] === true) {
@@ -517,6 +518,7 @@ class OrderController extends Controller
             'return_delivered',
             'received',
             'completed',
+            'return_cancelled',
             'return request cancelled',
             'exchange_rejected',
             'exchange_cancelled',
@@ -569,17 +571,6 @@ class OrderController extends Controller
             }
         }
 
-        $completedStatuses = [
-            'rejected',
-            'failed',
-            'refunded',
-            'return_delivered',
-            'received',
-            'completed',
-            'return request cancelled',
-            'exchange_rejected',
-            'exchange_cancelled',
-        ];
         $activeReturnRequest = $order
             ? $order->returnRequests()->whereNotIn('status', $completedStatuses)->latest()->first()
             : null;
@@ -631,7 +622,7 @@ class OrderController extends Controller
                 'status' => 'exchange_approved',
                 'approved_at' => now(),
                 'exchange_approved_at' => now(),
-                'shiprocket_exchange_order_id' => $data['shiprocket_response']['order_id'] ?? null,
+                'exchange_order_id' => $data['shiprocket_response']['order_id'] ?? null,
                 'exchange_shipment_id' => $data['shiprocket_response']['shipment_id'] ?? null,
                 'exchange_create_payload' => $data['payload'] ?? null,
                 'exchange_create_response' => $data,
@@ -1118,7 +1109,7 @@ class OrderController extends Controller
 
         $shiprocketCancelData = null;
 
-        if ($exchangeRequest->shiprocket_exchange_order_id || $exchangeRequest->awb_code) {
+        if ($exchangeRequest->exchange_order_id || $exchangeRequest->awb_code) {
             $shiprocketService = new ShiprocketService(new Client());
             $shiprocketCancelData = $shiprocketService->cancelShipmentOrder($exchangeRequest);
 

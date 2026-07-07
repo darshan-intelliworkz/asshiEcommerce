@@ -205,7 +205,7 @@ class ShiprocketWebhookController extends Controller
         return OrderReturnRequest::where('return_type', 'exchange')
             ->where(function ($query) use ($payload) {
                 if (!empty($payload['sr_order_id'])) {
-                    $query->where('shiprocket_exchange_order_id', $payload['sr_order_id']);
+                    $query->where('exchange_order_id', $payload['sr_order_id']);
                 }
 
                 if (!empty($payload['shipment_id'])) {
@@ -269,7 +269,7 @@ class ShiprocketWebhookController extends Controller
         }
 
         if (!empty($payload['sr_order_id'])) {
-            $updateData['shiprocket_exchange_order_id'] = $payload['sr_order_id'];
+            $updateData['exchange_order_id'] = $payload['sr_order_id'];
         }
 
         if (!empty($payload['shipment_id'])) {

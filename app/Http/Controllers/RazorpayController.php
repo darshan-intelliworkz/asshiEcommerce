@@ -141,7 +141,6 @@ class RazorpayController extends Controller
 
     public function refundPayment($orderId, $refundAmount = null)
     {
-        Log::info('Initiating refund for payment ID: ' . $orderId);
         $payment = PaymentOrders::where('order_id', $orderId)->firstOrFail();
         $razorpayPaymentId = $payment->razorpay_payment_id;
         Log::info('Payment record found: ' . $payment->amount .

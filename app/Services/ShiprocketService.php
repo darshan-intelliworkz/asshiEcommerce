@@ -757,7 +757,6 @@ class ShiprocketService
     }
 
     public function createCancelOrder($orderId){
-        \Log::info("ORDER ID - " . json_encode($orderId));
         if(isset($orderId) && $orderId != NULL){
             try {
                 $authToken = $this->getAuthToken();
@@ -855,12 +854,12 @@ class ShiprocketService
                     'awbs' => [$returnRequest->awb_code]
                 ];
 
-            } elseif ($returnRequest->return_type === 'exchange' && $returnRequest->shiprocket_exchange_order_id) {
+            } elseif ($returnRequest->return_type === 'exchange' && $returnRequest->exchange_order_id) {
 
                 // Cancel exchange order
                 $endpoint = '/orders/cancel';
                 $payload = [
-                    'ids' => [$returnRequest->shiprocket_exchange_order_id]
+                    'ids' => [$returnRequest->exchange_order_id]
                 ];
 
             } elseif ($returnRequest->shiprocket_return_order_id) {
@@ -927,7 +926,7 @@ class ShiprocketService
                 ], 422);
             }
 
-            if ($returnRequest->shiprocket_exchange_order_id || $returnRequest->exchange_shipment_id) {
+            if ($returnRequest->exchange_order_id || $returnRequest->exchange_shipment_id) {
                 return response()->json([
                     'status' => false,
                     'message' => 'Shiprocket exchange order already exists for this request.',
