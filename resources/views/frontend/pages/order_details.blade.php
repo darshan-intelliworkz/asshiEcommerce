@@ -72,7 +72,7 @@
                     @endif
 
                     @if(isset($order->status) && in_array($order->status, ['process', 'new']))
-                        <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
+                        <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}}, 'Cancell', this)">Cancel Order</button>
                     @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
                         @if($returnExpiryDate && now()->lessThanOrEqualTo($returnExpiryDate))
                             @if(isset($activeReturnRequest) && $activeReturnRequest)
@@ -81,7 +81,7 @@
                                 </button>
                             @else
                                 <button class="btn btn-danger" type="button"
-                                    onclick="Updateorder({{$order->id}} , 'Return')">
+                                    onclick="Updateorder({{$order->id}}, 'Return', this)">
                                     Request Return / Exchange
                                 </button>
                             @endif
@@ -98,12 +98,12 @@
 
                         @endif
                     @elseif($canCancelExchangeRequest)
-                        <button class="btn btn-secondary mt-3" type="button" onclick="Updateorder({{$order->id}} , 'Exchange Cancel')" >
+                        <button class="btn btn-secondary mt-3" type="button" onclick="Updateorder({{$order->id}}, 'Exchange Cancel', this)" >
                             Cancel Exchange Request
                         </button>
                     {{-- @elseif(isset($order->status) && $order->status == 'return request') --}}
                     @elseif($canCancelReturnRequest)
-                        <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}} , 'Return Cancel')" >
+                        <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}}, 'Return Cancel', this)" >
                             Cancel Return Request
                         </button>
                     @endif
@@ -324,6 +324,10 @@
                     <tr>
                         <th>Shipping Charge:</th>
                         <td>₹ {{number_format($order->shiping_charges ?? $order->shiping_charges,2)}}</td>
+                    </tr>
+                    <tr>
+                        <th>GST Charge:</th>
+                        <td>₹ {{number_format($order->total_gst_amount ?? $order->total_gst_amount,2)}}</td>
                     </tr>
                     <tr class="fw-bold">
                         <th>Total Amount:</th>
@@ -655,6 +659,10 @@
         background: #f6fdf3;
     }
 
+    .btn-loading {
+        opacity: 0.8;
+        pointer-events: none;
+    }
 
 </style>    
 
@@ -746,16 +754,39 @@
     @endif
     <script>
 
-        function Updateorder(id, status){
+        function setButtonLoading(button, loadingText = 'Processing...') {
+            if (!button) {
+                return;
+            }
+
+            $(button).prop('disabled', true).addClass('btn-loading');
+            $(button).data('original-text', $(button).html());
+            $(button).html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + loadingText);
+        }
+
+        function resetButtonLoading(button) {
+            if (!button) {
+                return;
+            }
+
+            $(button).prop('disabled', false).removeClass('btn-loading');
+            const originalText = $(button).data('original-text');
+            if (originalText) {
+                $(button).html(originalText);
+            }
+        }
+
+        function Updateorder(id, status, button = null){
             if(status === 'Cancell'){
-                cancelorder(id);
+                cancelorder(id, status, button);
             } else if(status == 'Return') {
-                // returnorder(id , status);
+                setButtonLoading(button);
                 openReturnExchangeModal(id);
+                resetButtonLoading(button);
             }else if(status == 'Return Cancel') {
-                returnRequestCancel(id , status); 
+                returnRequestCancel(id , status, button); 
             }else if(status == 'Exchange Cancel') {
-                exchangeRequestCancel(id , status);
+                exchangeRequestCancel(id , status, button);
             } else {
                 var result = false;
             }
@@ -797,9 +828,10 @@
         });
 
 
-        function cancelorder(id , status = 'Cancell'){
+        function cancelorder(id , status = 'Cancell', button = null){
             var result = confirm('Are you sure you want to cancel this order?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -813,19 +845,22 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
                     }
                 });
             }
         }
 
-        function returnorder(id , status = 'Return'){
+        function returnorder(id , status = 'Return', button = null){
             var result = confirm('Are you sure you want to return this order?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -839,19 +874,22 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
                     }
                 });
             }
         }
 
-        function returnRequestCancel(id , status = 'Return Cancel'){
+        function returnRequestCancel(id , status = 'Return Cancel', button = null){
             var result = confirm('Are you sure you want to cancel this return request?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -865,19 +903,22 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
                     }
                 });
             }
         }
 
-        function exchangeRequestCancel(id , status = 'Exchange Cancel'){
+        function exchangeRequestCancel(id , status = 'Exchange Cancel', button = null){
             var result = confirm('Are you sure you want to cancel this exchange request?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -891,10 +932,12 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert(response.message || 'Failed to cancel exchange request. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while cancelling the exchange request. Please try again.');
                     }
                 });

@@ -135,6 +135,7 @@ class ShiprocketService
                     'tax' => $item->gst_percent ?? 0,
                 ];
             }
+            $pTotal = round($order->sub_total + $order->total_gst_amount);
             $payload = [
                 'order_id' => $order->order_number,
                 'order_date' => $order->created_at->format('Y-m-d H:i'),
@@ -156,7 +157,7 @@ class ShiprocketService
                 'giftwrap_charges' => 0,
                 'transaction_charges' => 0,
                 'total_discount' => (int) $order->coupon,
-                'sub_total' => (int) $order->sub_total + $order->total_gst_amount,
+                'sub_total' => (int)$pTotal,
                 //'sub_total' => isset($order->coupon) && $order->coupon != NULL ? (int) $order->sub_total - (int) $order->coupon : (int) $order->sub_total,
                 // Dummy dimensions (required)
                 'length' => 10,

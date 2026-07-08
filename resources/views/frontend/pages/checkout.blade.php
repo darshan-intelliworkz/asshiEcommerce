@@ -110,10 +110,11 @@
 
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Country<span>*</span></label>
-                                            <select name="country" id="country">
+                                            <label>Country</label>
+                                            <input type="text" name="country" id="country" placeholder="India" value="India" readonly>
+                                            {{-- <select name="country" id="country">
                                                 <option value="IN" selected readonly>India</option>
-                                            </select>
+                                            </select> --}}
                                             {{-- <select name="country" id="country">
                                                 <option value="0">Select Country</option>
                                                 <option value="AF">Afghanistan</option>
@@ -637,7 +638,7 @@
                                     
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Address Line 1<span>*</span></label>
+                                            <label>Flat/House No., Building/Apartment<span>*</span></label>
                                             <input type="text" name="address1" placeholder="" value="{{old('address1')}}">
                                             @error('address1')
                                                 <span class='text-danger'>{{$message}}</span>
@@ -646,7 +647,7 @@
                                     </div>
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Address Line 2</label>
+                                            <label>Area, Street, Sector, Town</label>
                                             <input type="text" name="address2" placeholder="" value="{{old('address2')}}">
                                             @error('address2')
                                                 <span class='text-danger'>{{$message}}</span>

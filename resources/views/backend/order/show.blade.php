@@ -81,16 +81,22 @@
                     </tr>
                     <tr>
                         <td>Order Status</td>
-                        <td> : {{$order->status}}</td>
+                        <td> : {{ucfirst($order->status)}}</td>
                     </tr>
                     <tr>
                         <td>Shipping Charge</td>
                         <td> : ₹ {{$order->shiping_charges}}</td>
                     </tr>
                     <tr>
+                        <td>Shipping Charge</td>
+                        <td> : ₹ {{$order->total_gst_amount ?? ''}}</td>
+                    </tr>
+                    @if(isset($order->coupon) && $order->coupon != null)
+                    <tr>
                       <td>Coupon</td>
                       <td> : ₹ {{number_format($order->coupon,2)}}</td>
                     </tr>
+                    @endif
                     <tr>
                         <td>Total Amount</td>
                         <td> : ₹ {{number_format($order->total_amount,2)}}</td>
@@ -101,7 +107,7 @@
                     </tr>
                     <tr>
                         <td>Payment Status</td>
-                        <td> : {{$order->payment_status}}</td>
+                        <td> : {{ucfirst($order->payment_status)}}</td>
                     </tr>
               </table>
             </div>
