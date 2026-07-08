@@ -112,6 +112,7 @@ use App\Http\Controllers\ShiprocketWebhookController;
     Route::get('/order-details/{id}', [OrderController::class, 'orderDetails'])->name('order.dertails')->middleware('user');
     Route::post('/order/update-status', [OrderController::class, 'orderUpdate'])->name('order.update.status')->middleware('user');
     Route::get('/checkout', [CartController::class, 'checkout'])->name('checkout')->middleware('user');
+    Route::get('/thank-you/{order_id?}', [OrderController::class, 'thankYou'])->name('thank.you');
     Route::get('/razorpay/pay/{order_id}', [RazorpayController::class, 'pay'])->name('razorpay.pay');
     Route::post('/razorpay/verify', [RazorpayController::class, 'verify'])->name('razorpay.verify');
     Route::post('/razorpay/cancel', [RazorpayController::class, 'cancel'])->name('razorpay.cancel');

@@ -119,6 +119,7 @@ class OrderController extends Controller
         
         $order->total_gst_amount = $gstTotal;
         $order->save();
+        session()->put('thank_you_order_id', $order->id);
         //$status=$order->save();
 
         
@@ -132,19 +133,19 @@ class OrderController extends Controller
         ];
         //Notification::send($users, new StatusNotification($details));
         if(request('payment_method')=='paypal'){
-            return redirect()->route('payment')->with(['id'=>$order->id]);
+            session()->put('order_id', $order->id);
+            return redirect()->route('payment')->with(['id'=>$order->id, 'order_id'=>$order->id]);
         }
         else{
             session()->forget('cart');
             session()->forget('coupon');
         }
         Cart::where('user_id', auth()->user()->id)->where('order_id', null)->update(['order_id' => $order->id]);
-        
+    
         if (strtolower($order->payment_method) == 'cod') {
-            $shiprocketService = new ShiprocketService(new Client());
-            $shiprocketService->createCompleteShipmentForOrder($order);
+            // $shiprocketService = new ShiprocketService(new Client());
+            // $shiprocketService->createCompleteShipmentForOrder($order);
         }
-
 
         if (request('payment_method') == 'razorpay') {
             $razorpayController = new RazorpayController();
@@ -152,7 +153,22 @@ class OrderController extends Controller
         }
         // dd($users);        
         request()->session()->flash('success','Your order placed successfully');
-        return redirect()->route('home');
+        return redirect()->route('thank.you', ['order_id' => $order->id]);
+    }
+
+    public function thankYou(Request $request, $order_id = null)
+    {
+        $order = null;
+
+        if ($order_id) {
+            $order = Order::find($order_id);
+        }
+
+        if (!$order && $request->session()->has('thank_you_order_id')) {
+            $order = Order::find($request->session()->get('thank_you_order_id'));
+        }
+
+        return view('frontend.pages.thankyou', compact('order'));
     }
 
    

@@ -55,7 +55,7 @@
                 .then(data => {  
                     document.getElementById('payment-loader').style.display = 'none'; // hide loader
                     if (data.status) {
-                        window.location.href = "{{ route('myorders') }}";
+                        window.location.href = data.redirect_url || "{{ route('thank.you') }}";
                     } else {
                         alert(data.message || 'Verification failed');
                         window.location.href = "{{ route('myorders') }}";

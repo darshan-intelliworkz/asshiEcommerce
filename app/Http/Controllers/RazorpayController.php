@@ -108,10 +108,14 @@ class RazorpayController extends Controller
         $shiprocketService = new ShiprocketService(new Client());
         $shiprocketService->createCompleteShipmentForOrder($order);
 
-        //return redirect()->route('myorders')->with('success', 'Payment Successful!');
+        session()->put('thank_you_order_id', $order->id);
+        session()->forget('cart');
+        session()->forget('coupon');
+
         return response()->json([
             'status' => true,
-            'message' => 'Payment verified successfully'
+            'message' => 'Payment verified successfully',
+            'redirect_url' => route('thank.you', ['order_id' => $order->id])
         ]);
     }
 
