@@ -143,8 +143,8 @@ class OrderController extends Controller
         Cart::where('user_id', auth()->user()->id)->where('order_id', null)->update(['order_id' => $order->id]);
     
         if (strtolower($order->payment_method) == 'cod') {
-            // $shiprocketService = new ShiprocketService(new Client());
-            // $shiprocketService->createCompleteShipmentForOrder($order);
+            $shiprocketService = new ShiprocketService(new Client());
+            $shiprocketService->createCompleteShipmentForOrder($order);
         }
 
         if (request('payment_method') == 'razorpay') {

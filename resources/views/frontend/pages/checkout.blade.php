@@ -7,7 +7,7 @@
 
     <div id="checkout-loader-overlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.9); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
         <div style="width:54px;height:54px;border:6px solid #f3f3f3;border-top-color:#f7941d;border-radius:50%;animation:spin 1s linear infinite;"></div>
-        <p style="margin-top:15px;font-size:16px;font-weight:600;color:#333;">Placing your order...</p>
+        <p style="margin-top:15px;font-size:16px;font-weight:600;color:#333; text-align:center; max-width:320px;">Placing your order. Please wait. Do not press anything until payment is done.</p>
     </div>
 
     <style>
@@ -52,11 +52,11 @@
                                             <label><b>Select Payment Type</b></label>
                                                 <div class="row">
                                                     <div class="col-md-4">
-                                                        <label><input name="payment_method" type="radio" value="cod" onchange="checkshipingcharges(this)" required {{ old('payment_method') == 'cod' ? 'checked' : '' }}>  Cash On Delivery</label>
+                                                        <label><input name="payment_method" type="radio" value="cod" onchange="checkshipingcharges(this)" {{ old('payment_method') == 'cod' ? 'checked' : '' }}>  Cash On Delivery</label>
                                                     </div>
                                                     <div class="col-md-4">
                                                     {{-- <input name="payment_method"  type="radio" value="paypal" onchange="checkshipingcharges(this)"> <label> PayPal</label>  --}}
-                                                    <label><input name="payment_method" type="radio" value="razorpay" onchange="checkshipingcharges(this)" required {{ old('payment_method') == 'razorpay' ? 'checked' : '' }}/> Online Payment</label>
+                                                    <label><input name="payment_method" type="radio" value="razorpay" onchange="checkshipingcharges(this)" {{ old('payment_method') == 'razorpay' ? 'checked' : '' }}/> Online Payment</label>
                                                     </div>
                                                 </div>
                                         </div>
@@ -75,7 +75,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>First Name<span>*</span></label>
-                                            <input type="text" name="first_name" placeholder="" value="{{old('first_name')}}" required oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trimStart();">
+                                            <input type="text" name="first_name" placeholder="" value="{{old('first_name')}}" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trimStart();">
                                             @error('first_name')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -84,7 +84,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>Last Name<span>*</span></label>
-                                            <input type="text" name="last_name" placeholder="" value="{{old('last_name')}}" required oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trimStart();">
+                                            <input type="text" name="last_name" placeholder="" value="{{old('last_name')}}" oninput="this.value = this.value.replace(/[^a-zA-Z\s]/g, '').replace(/\s+/g, ' ').trimStart();">
                                             @error('last_name')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -93,7 +93,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>Email Address<span>*</span></label>
-                                            <input type="email" name="email" placeholder="" value="{{old('email')}}" required>
+                                            <input type="email" name="email" placeholder="" value="{{old('email')}}">
                                             @error('email')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -102,7 +102,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>Phone Number <span>*</span></label>
-                                            <input type="tel" name="phone" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" placeholder="" value="{{old('phone')}}" required oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);">
+                                            <input type="tel" name="phone" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" placeholder="" value="{{old('phone')}}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);">
                                             @error('phone')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -111,7 +111,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>Postal Code<span>*</span></label>
-                                            <input type="text" name="post_code" id="post_code" placeholder="" value="{{old('post_code')}}" required oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);">
+                                            <input type="text" name="post_code" id="post_code" placeholder="" value="{{old('post_code')}}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 15);">
                                             @error('post_code')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -632,7 +632,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>State<span>*</span></label>
-                                            <input type="text" name="state" placeholder="" value="{{old('state')}}" required>
+                                            <input type="text" name="state" placeholder="" value="{{old('state')}}">
                                             @error('state')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -641,7 +641,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>City<span>*</span></label>
-                                            <input type="text" name="city" placeholder="" value="{{old('city')}}" required>
+                                            <input type="text" name="city" placeholder="" value="{{old('city')}}">
                                             @error('city')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -651,7 +651,7 @@
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
                                             <label>Flat/House No., Building/Apartment<span>*</span></label>
-                                            <input type="text" name="address1" placeholder="" value="{{old('address1')}}" required>
+                                            <input type="text" name="address1" placeholder="" value="{{old('address1')}}">
                                             @error('address1')
                                                 <span class='text-danger'>{{$message}}</span>
                                             @enderror
@@ -728,12 +728,18 @@
             var form = document.getElementById('checkout-form');
             var button = document.getElementById('checkout-submit-btn');
             var overlay = document.getElementById('checkout-loader-overlay');
+            var isSubmitting = false;
 
             if (!form || !button || !overlay) {
                 return;
             }
 
             form.addEventListener('submit', function (event) {
+                if (isSubmitting) {
+                    event.preventDefault();
+                    return false;
+                }
+
                 var paymentMethod = form.querySelector('input[name="payment_method"]:checked');
                 var requiredFields = ['first_name', 'last_name', 'email', 'phone', 'post_code', 'state', 'city', 'address1'];
                 var isValid = true;
@@ -750,13 +756,14 @@
                 });
 
                 if (!isValid) {
-                    event.preventDefault();
                     button.disabled = false;
                     button.innerHTML = 'proceed to checkout';
                     overlay.style.display = 'none';
-                    form.reportValidity();
-                    return false;
+                    return true;
                 }
+
+                isSubmitting = true;
+                form.setAttribute('data-processing', 'true');
 
                 button.disabled = true;
                 button.innerHTML = 'Processing...';
