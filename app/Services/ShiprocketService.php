@@ -115,7 +115,7 @@ class ShiprocketService
                 }
                 
                 $colorName = null;
-                $productName = $item->product->title ?? 'Product';
+                $productName = $item->product->product_code ?? 'Product';
                 if(isset($item->color_id) && $item->color_id != null){
                     $colorName = optional($item->color)->color_name;
                 }
