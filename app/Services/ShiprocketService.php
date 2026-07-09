@@ -116,11 +116,14 @@ class ShiprocketService
                 
                 $colorName = null;
                 $productName = $item->product->product_code ?? 'Product';
+                $sku = $productName.'_'.$item->product_id;
                 if(isset($item->color_id) && $item->color_id != null){
                     $colorName = optional($item->color)->color_name;
+                    $sku .= '_' . $colorName;
                 }
                 if(isset($colorName) && $colorName != null){
                     if($size != null){
+                        $sku .= '_' . $size;
                         $productName .= ' | Color:'.$colorName.') | Size:'.$size;
                     }else{
                         $productName .= ' | Color:'.$colorName.')';
@@ -128,7 +131,7 @@ class ShiprocketService
                 }
                 $items[] = [
                     'name' => $productName,
-                    'sku' => 'SKU-' . $item->product_id.'_'.$size,
+                    'sku' => $sku,
                     'units' => $item->quantity,
                     'selling_price' => $item->price + $item->gst_amt,
                     'discount' => 0,
