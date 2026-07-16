@@ -41,7 +41,7 @@ class CartController extends Controller
         $already_cart = Cart::where('user_id', auth()->user()->id)
                         ->where('order_id',null)
                         ->whereJsonContains('size_price->size', $selectedSize)
-                        ->whereJsonContains('size_price->price', $selectedPrice)
+                        //->whereJsonContains('size_price->price', $selectedPrice)
                         ->where('product_id', $product->id);
         if($selectedColor != null){
             $already_cart = $already_cart->where('color_id', $selectedColor);
