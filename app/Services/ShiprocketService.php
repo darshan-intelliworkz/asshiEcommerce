@@ -120,15 +120,17 @@ class ShiprocketService
                 if(isset($item->color_id) && $item->color_id != null){
                     $colorName = optional($item->color)->color_name;
                     $sku .= '_' . $colorName;
-                }
-                if(isset($colorName) && $colorName != null){
-                    if($size != null){
-                        $sku .= '_' . $size;
-                        $productName .= ' | Color:'.$colorName.') | Size:'.$size;
-                    }else{
+                    if(isset($colorName) && $colorName != null){
                         $productName .= ' | Color:'.$colorName.')';
                     }
                 }
+                if($size != null){
+                    $sku .= '_' . $size;
+                    $productName .= ' | Size:'.$size;
+                }else{
+                    $productName .= ' | Size: N/A';
+                }
+
                 $items[] = [
                     'name' => $productName,
                     'sku' => $sku,

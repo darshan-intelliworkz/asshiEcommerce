@@ -89,7 +89,7 @@ use App\Http\Controllers\ShiprocketWebhookController;
 
 
 // Cart section
-    Route::get('/add-to-cart/{slug}', [CartController::class, 'addToCart'])->name('add-to-cart')->middleware('user');
+    Route::get('/add-to-cart/{slug}/{color_id?}', [CartController::class, 'addToCart'])->name('add-to-cart')->middleware('user');
     Route::Post('/add-to-carts/{slug}', [CartController::class, 'addToCarts'])->name('add-to-carts')->middleware('user');
     Route::post('/add-to-cart', [CartController::class, 'singleAddToCart'])->name('single-add-to-cart')->middleware('user');
     Route::get('cart-delete/{id}', [CartController::class, 'cartDelete'])->name('cart-delete');

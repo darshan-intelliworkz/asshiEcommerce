@@ -255,8 +255,8 @@
                               <button type="submit" class="btn">Add to cart</button>
                               {{-- <a href="{{route('add-to-wishlist',$product_detail->slug)}}" class="btn min {{ $wishlisted }}"><i class="ti-heart"></i></a> --}}
                               <a href="javascript:void(0);" class="add-to-wishlist btn min {{ $wishlisted }}"><i class="ti-heart"></i></a>
-                              <a href="{{ route('add-to-cart', ['slug' => $product_detail->slug, 'buy_now' => "buyNow"]) }}" 
-                              class="btn cart" 
+                              <a href="{{ route('add-to-cart', ['slug' => $product_detail->slug, 'buy_now' => "buyNow", 'color_id' => $product_detail->color[0]->id]) }}" 
+                              class="btn cart buy-now-btn" 
                               data-id="{{ $product_detail->id }}">
                               Buy Now!
                               </a>
@@ -1277,6 +1277,15 @@
    	let colorId = $('#selected_color').val();
    
    	window.location.href = baseUrl + '?color_id=' + colorId;
+   });
+
+   $('.buy-now-btn').on('click', function (e) {
+   	e.preventDefault();
+
+   	let baseUrl = "{{ route('add-to-cart', ['slug' => $product_detail->slug, 'buy_now' => 'buyNow']) }}";
+   	let colorId = $('#selected_color').val();
+
+   	window.location.href = baseUrl + '&color_id=' + colorId;
    });
    });
    

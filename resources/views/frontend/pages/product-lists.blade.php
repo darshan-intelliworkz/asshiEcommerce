@@ -354,7 +354,7 @@
 																		<input type="hidden" name="selected_color" id="selected_color" value="{{ $product->color->first()?->id }}">
 
 																		<button type="submit" class="btn mx-1">Add to cart</button>
-																		<a href="{{ route('add-to-cart', ['slug' => $product->slug, 'buy_now' => "buyNow"]) }}" 
+																		<a href="{{ route('add-to-cart', ['slug' => $product->slug, 'buy_now' => "buyNow", 'color_id' => $product->color->first()?->id]) }}" 
 																			class="btn cart" 
 																			data-id="{{ $product->id }}">
 																			Buy Now!

@@ -31,8 +31,7 @@ class CartController extends Controller
         // Get first size and price
         $selectedSize  = $sizeData['size'][0] ?? null;
         $selectedPrice = $sizeData['price'][0] ?? null;
-
-
+        $selectedColor = $request->color_id ?? null;
 
         if (empty($product)) {
             request()->session()->flash('error','Invalid Products');
@@ -43,8 +42,11 @@ class CartController extends Controller
                         ->where('order_id',null)
                         ->whereJsonContains('size_price->size', $selectedSize)
                         ->whereJsonContains('size_price->price', $selectedPrice)
-                        ->where('product_id', $product->id)
-                        ->first();
+                        ->where('product_id', $product->id);
+        if($selectedColor != null){
+            $already_cart = $already_cart->where('color_id', $selectedColor);
+        }
+        $already_cart = $already_cart->first();
         if($already_cart) {
              
             $already_cart->quantity = $already_cart->quantity + 1;
@@ -67,6 +69,7 @@ class CartController extends Controller
             $cart->quantity = 1;
             $cart->size_price = json_encode($data);
             $cart->amount=$cart->price*$cart->quantity;
+            $cart->color_id = $selectedColor;
             if ($cart->product->stock < $cart->quantity || $cart->product->stock <= 0) return back()->with('error','Stock not sufficient!.');
             $cart->save();
             $wishlist=Wishlist::where('user_id',auth()->user()->id)->where('product_id' , $product->id)->where('cart_id',null)->delete();
