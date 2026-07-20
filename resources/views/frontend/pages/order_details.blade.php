@@ -103,7 +103,7 @@
                         </button>
                     {{-- @elseif(isset($order->status) && $order->status == 'return request') --}}
                     @elseif($canCancelReturnRequest)
-                        <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}}, 'Return Cancel', this)" >
+                        <button class="btn btn-secondary mt-3" type="button" onclick="Updateorder({{$order->id}}, 'Return Cancel', this)" >
                             Cancel Return Request
                         </button>
                     @endif
