@@ -183,14 +183,10 @@ class RazorpayController extends Controller
         if ($refundAmount !== null) {
             $fields['amount'] = (int) round($refundAmount * 100);
         }
-
         $ch = curl_init();
-
-        curl_setopt($ch, CURLOPT_URL,
-            "https://api.razorpay.com/v1/payments/" .
-            $razorpayPaymentId .
-            "/refund"
-        );
+        $refundUrl = "https://api.razorpay.com/v1/payments/".$razorpayPaymentId ."/refund";
+        
+        curl_setopt($ch, CURLOPT_URL, $refundUrl);
 
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
