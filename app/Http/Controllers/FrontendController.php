@@ -18,6 +18,7 @@ use DB;
 use Hash;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 use GuzzleHttp\Client;
 class FrontendController extends Controller
@@ -749,11 +750,28 @@ class FrontendController extends Controller
     }
     public function registerSubmit(Request $request){
         // return $request->all();
-        $this->validate($request,[
+        $registeredMessage = 'This email is already registered. Please login or use another email.';
+        if (User::where('email', $request->email)->exists()) {
+            return redirect()->route('register.form')
+                ->withErrors(['email' => $registeredMessage])
+                ->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', $registeredMessage);
+        }
+
+        $validator = Validator::make($request->all(), [
             'name'=>'string|required|min:2',
-            'email'=>'string|required|unique:users,email',
+            'email'=>'string|required|email|unique:users,email',
             'password'=>'required|min:6|confirmed',
+        ], [
+            'email.unique' => $registeredMessage,
         ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
         $data=$request->all();
         // dd($data);
         $check=$this->create($data);
