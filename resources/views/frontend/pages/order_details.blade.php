@@ -51,7 +51,7 @@
                         }
                         $returnExpiryDate = $deliveredDate ? $deliveredDate->copy()->addDays(7) : null;
                         $countReturnReqtuest = OrderReturnRequest::where('order_id', $order->id)->count();
-                        $exchangeCancelableStatuses = ['pending', 'exchange_requested', 'exchange_approved'];
+                        $exchangeCancelableStatuses = ['pending', 'exchange_requested'];
                         $canCancelExchangeRequest = isset($latestReturnRequest)
                             && $latestReturnRequest
                             && $latestReturnRequest->return_type === 'exchange'
