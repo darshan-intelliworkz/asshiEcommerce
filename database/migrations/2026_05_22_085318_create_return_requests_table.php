@@ -77,6 +77,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('return_requests');
+        Schema::dropIfExists('order_return_requests');
     }
 };

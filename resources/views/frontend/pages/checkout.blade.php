@@ -5,6 +5,18 @@
 @section('main-content')
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <div id="checkout-loader-overlay" style="display:none; position:fixed; inset:0; background:rgba(255,255,255,0.9); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
+        <div style="width:54px;height:54px;border:6px solid #f3f3f3;border-top-color:#f7941d;border-radius:50%;animation:spin 1s linear infinite;"></div>
+        <p style="margin-top:15px;font-size:16px;font-weight:600;color:#333; text-align:center; max-width:320px;">Placing your order. Please wait. Do not press anything until payment is done.</p>
+    </div>
+
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
     <!-- Breadcrumbs -->
     <div class="breadcrumbs">
         <div class="container">
@@ -25,7 +37,7 @@
     <!-- Start Checkout -->
     <section class="shop checkout section">
         <div class="container">
-                <form class="form" method="POST" action="{{route('cart.order')}}">
+                <form id="checkout-form" class="form" method="POST" action="{{route('cart.order')}}">
                     @csrf
                     <div class="row"> 
 
@@ -40,7 +52,7 @@
                                             <label><b>Select Payment Type</b></label>
                                                 <div class="row">
                                                     <div class="col-md-4">
-                                                        <label><input name="payment_method"  type="radio" value="cod" onchange="checkshipingcharges(this)" {{ old('payment_method') == 'cod' ? 'checked' : '' }}>  Cash On Delivery</label>
+                                                        <label><input name="payment_method" type="radio" value="cod" onchange="checkshipingcharges(this)" {{ old('payment_method') == 'cod' ? 'checked' : '' }}>  Cash On Delivery</label>
                                                     </div>
                                                     <div class="col-md-4">
                                                     {{-- <input name="payment_method"  type="radio" value="paypal" onchange="checkshipingcharges(this)"> <label> PayPal</label>  --}}
@@ -110,10 +122,11 @@
 
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Country<span>*</span></label>
-                                            <select name="country" id="country">
+                                            <label>Country</label>
+                                            <input type="text" name="country" placeholder="India" value="India" readonly>
+                                            {{-- <select name="country" id="country">
                                                 <option value="IN" selected readonly>India</option>
-                                            </select>
+                                            </select> --}}
                                             {{-- <select name="country" id="country">
                                                 <option value="0">Select Country</option>
                                                 <option value="AF">Afghanistan</option>
@@ -637,7 +650,7 @@
                                     
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Address Line 1<span>*</span></label>
+                                            <label>Flat/House No., Building/Apartment<span>*</span></label>
                                             <input type="text" name="address1" placeholder="" value="{{old('address1')}}">
                                             @error('address1')
                                                 <span class='text-danger'>{{$message}}</span>
@@ -646,7 +659,7 @@
                                     </div>
                                     <div class="col-lg-6 col-md-6 col-12">
                                         <div class="form-group">
-                                            <label>Address Line 2</label>
+                                            <label>Area, Street, Sector, Town</label>
                                             <input type="text" name="address2" placeholder="" value="{{old('address2')}}">
                                             @error('address2')
                                                 <span class='text-danger'>{{$message}}</span>
@@ -697,7 +710,7 @@
                                 <div class="single-widget get-button">
                                     <div class="content">
                                         <div class="button">
-                                            <button type="submit" onchange="checkDeliveryService()" class="btn">proceed to checkout</button>
+                                            <button id="checkout-submit-btn" type="submit" onchange="checkDeliveryService()" class="btn">proceed to checkout</button>
                                         </div>
                                     </div>
                                 </div>
@@ -709,6 +722,55 @@
         </div>
     </section>
     <!--/ End Checkout -->
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var form = document.getElementById('checkout-form');
+            var button = document.getElementById('checkout-submit-btn');
+            var overlay = document.getElementById('checkout-loader-overlay');
+            var isSubmitting = false;
+
+            if (!form || !button || !overlay) {
+                return;
+            }
+
+            form.addEventListener('submit', function (event) {
+                if (isSubmitting) {
+                    event.preventDefault();
+                    return false;
+                }
+
+                var paymentMethod = form.querySelector('input[name="payment_method"]:checked');
+                var requiredFields = ['first_name', 'last_name', 'email', 'phone', 'post_code', 'state', 'city', 'address1'];
+                var isValid = true;
+
+                if (!paymentMethod) {
+                    isValid = false;
+                }
+
+                requiredFields.forEach(function (fieldName) {
+                    var field = form.querySelector('[name="' + fieldName + '"]');
+                    if (!field || !field.value || !field.value.trim()) {
+                        isValid = false;
+                    }
+                });
+
+                if (!isValid) {
+                    button.disabled = false;
+                    button.innerHTML = 'proceed to checkout';
+                    overlay.style.display = 'none';
+                    return true;
+                }
+
+                isSubmitting = true;
+                form.setAttribute('data-processing', 'true');
+
+                button.disabled = true;
+                button.innerHTML = 'Processing...';
+                overlay.style.display = 'flex';
+            });
+        });
+    </script>
     
     <!-- Start Shop Services Area  -->
     <section class="shop-services section home">

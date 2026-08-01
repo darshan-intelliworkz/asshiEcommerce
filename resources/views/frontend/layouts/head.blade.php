@@ -1,8 +1,34 @@
 <!-- Meta Tag -->
 @yield('meta')
 <!-- Title Tag  -->
-<title>@yield('title')</title>
+<title>{{$meta_title ?? 'Aashi - Ecommerce'}}</title>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<!--<link rel="icon" type="image/x-icon" href="">-->
+<link rel="icon" href="{{ asset('public/frontend/img/aashi_retail_favicon.ico') }}" sizes="any">
+
+<meta name="description" content="{{ $meta_description ?? 'Aashi Retail'}}"> 
+<!--<meta name="robots" content="follow, index, max-snippet:-1, max-video-preview:-1, max-image-preview:large"/>-->
 <meta name="robots" content="nofollow, noindex"/>
+<link rel="canonical" href="{{ url()->current() }}" />
+
+<!--OG Tags-->
+<meta property="og:site_name" content="Aashi Retail">
+<meta property="og:title" content="{{$meta_title ?? 'Aashi - Ecommerce'}}" />
+<meta property="og:description" content="{{ $meta_description ?? 'Aashi Retail'}}" />
+<meta property="og:image" content="{{ asset('public/frontend/img/logo.svg') }}">
+<meta property="og:url" content="{{ url()->current() }}">
+<meta property="og:type" content="website">
+
+<!--Twitter X Card Tags-->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{$meta_title ?? 'Aashi - Ecommerce'}}">
+<meta name="twitter:description" content="{{ $meta_description ?? 'Aashi Retail'}}">
+<meta name="twitter:image" content="{{ asset('public/frontend/img/logo.svg') }}">
+    
+
 <!-- Web Font -->
 <link href="https://fonts.googleapis.com/css?family=Poppins:200i,300,300i,400,400i,500,500i,600,600i,700,700i,800,800i,900,900i&display=swap" rel="stylesheet">
 
@@ -54,6 +80,19 @@
     left: 100%;
     margin-top: 0px;
     margin-left: 0px;
+    }
+    
+    /* Chrome, Safari, Edge, Opera */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    
+    /* Firefox */
+    input[type="number"] {
+        -moz-appearance: textfield;
+        appearance: textfield;
     }
 
     /*

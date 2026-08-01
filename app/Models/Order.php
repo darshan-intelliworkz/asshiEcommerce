@@ -2,10 +2,15 @@
 
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class Order extends Model
 {
-    protected $fillable=['user_id','order_number' , 'shiping_charges','sub_total','quantity','delivery_charge','status','total_amount','first_name','last_name','country','state','city','post_code','address1','address2','phone','email','payment_method','payment_status','shipping_id','coupon', 'total_gst_amount'];
+    protected $fillable=['user_id','order_number' , 'shiping_charges','sub_total','quantity','delivery_charge','status','total_amount','first_name','last_name','country','state','city','post_code','address1','address2','phone','email','payment_method','payment_status','shipping_id','coupon', 'total_gst_amount', 'delivered_at'];
+
+    protected $casts = [
+        'delivered_at' => 'datetime',
+    ];
 
     public function cart_info(){
         return $this->hasMany('App\Models\Cart','order_id','id');
@@ -44,6 +49,21 @@ class Order extends Model
     public function returnRequests()
     {
         return $this->hasMany(OrderReturnRequest::class, 'order_id');
+    }
+
+    protected static function booted()
+    {
+        static::updated(function ($model) {
+            if ($model->wasChanged('status')) {
+                Log::info('Status updated', [
+                    'model'      => class_basename($model),
+                    'id'         => $model->id,
+                    'old_status' => $model->getOriginal('status'),
+                    'new_status' => $model->status,
+                    'user_id'    => auth()->id(),
+                ]);
+            }
+        });
     }
 
 }

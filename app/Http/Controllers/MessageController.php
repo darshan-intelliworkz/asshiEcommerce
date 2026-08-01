@@ -43,7 +43,7 @@ class MessageController extends Controller
         $this->validate($request,[
             'name'=>'string|required|min:2',
             'email'=>'email|required',
-            'message'=>'required|min:20|max:200',
+            'message'=>'required|min:10|max:200',
             'subject'=>'string|required',
             'phone'=>'numeric|required'
         ]);
@@ -59,10 +59,11 @@ class MessageController extends Controller
         $data['phone']=$message->phone;
         $data['message']=$message->message;
         $data['subject']=$message->subject;
-        $data['photo']=Auth()->user()->photo;
-        // return $data;    
-        event(new MessageSent($data));
-        exit();
+
+        request()->session()->flash('success','YourContact Inquiry placed Successfully');
+        return redirect()->route('thank.you');
+        // event(new MessageSent($data));
+        // exit();
     }
 
     /**

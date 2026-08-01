@@ -22,6 +22,31 @@
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
         var paymentProcessing = false;
+        var paymentFinalized = false;
+        var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        var myOrdersUrl = "{{ route('myorders') }}";
+
+        function updatePaymentStatus(url) {
+            if (paymentFinalized) {
+                return Promise.resolve();
+            }
+
+            paymentFinalized = true;
+
+            return fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRF-TOKEN": csrfToken
+                },
+                body: JSON.stringify({
+                    order_number: "{{ $order->order_number }}"
+                })
+            }).finally(function () {
+                window.location.href = myOrdersUrl;
+            });
+        }
 
         var options = {
             "key": "{{ $key }}",
@@ -32,12 +57,14 @@
             "order_id": "{{ $order_id }}",
             "handler": function (response){ 
                 paymentProcessing = true;
+                paymentFinalized = true;
                 document.getElementById('payment-loader').style.display = 'block';
                 fetch("{{ route('razorpay.verify') }}", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
+                        "Accept": "application/json",
+                        "X-CSRF-TOKEN": csrfToken
                     },
                     body: JSON.stringify({
                         razorpay_payment_id: response.razorpay_payment_id,
@@ -46,10 +73,16 @@
                         order_number: "{{ $order->order_number }}"
                     })
                 })
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return res.json();
+                })
                 .then(data => {  
                     document.getElementById('payment-loader').style.display = 'none'; // hide loader
                     if (data.status) {
-                        window.location.href = "{{ route('myorders') }}";
+                        window.location.href = data.redirect_url || "{{ route('thank.you') }}";
                     } else {
                         alert(data.message || 'Verification failed');
                         window.location.href = "{{ route('myorders') }}";
@@ -65,23 +98,18 @@
                 escape: false,
                 backdropclose: false,
                 "ondismiss": function () {
-                    // User closed payment popup
-                    fetch("{{ route('razorpay.cancel') }}", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
-                        },
-                        body: JSON.stringify({
-                            order_number: "{{ $order->order_number }}"
-                        })
-                    }).then(() => {
-                        window.location.href = "{{ route('razorpay.failed') }}";
-                    });
+                    if (!paymentProcessing) {
+                        updatePaymentStatus("{{ route('razorpay.cancel') }}");
+                    }
                 }
             }
         };
         var rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (response) {
+            if (!paymentFinalized) {
+                updatePaymentStatus("{{ route('razorpay.failed') }}");
+            }
+        });
         rzp.open();
     </script>
 </body>

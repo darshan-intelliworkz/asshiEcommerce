@@ -99,7 +99,7 @@ use App\Http\Controllers\ShiprocketWebhookController;
 
 
 // Cart section
-    Route::get('/add-to-cart/{slug}', [CartController::class, 'addToCart'])->name('add-to-cart')->middleware('user');
+    Route::get('/add-to-cart/{slug}/{color_id?}', [CartController::class, 'addToCart'])->name('add-to-cart')->middleware('user');
     Route::Post('/add-to-carts/{slug}', [CartController::class, 'addToCarts'])->name('add-to-carts')->middleware('user');
     Route::post('/add-to-cart', [CartController::class, 'singleAddToCart'])->name('single-add-to-cart')->middleware('user');
     Route::get('cart-delete/{id}', [CartController::class, 'cartDelete'])->name('cart-delete');
@@ -122,10 +122,11 @@ use App\Http\Controllers\ShiprocketWebhookController;
     Route::get('/order-details/{id}', [OrderController::class, 'orderDetails'])->name('order.dertails')->middleware('user');
     Route::post('/order/update-status', [OrderController::class, 'orderUpdate'])->name('order.update.status')->middleware('user');
     Route::get('/checkout', [CartController::class, 'checkout'])->name('checkout')->middleware('user');
+    Route::get('/thank-you/{order_id?}', [OrderController::class, 'thankYou'])->name('thank.you');
     Route::get('/razorpay/pay/{order_id}', [RazorpayController::class, 'pay'])->name('razorpay.pay');
     Route::post('/razorpay/verify', [RazorpayController::class, 'verify'])->name('razorpay.verify');
     Route::post('/razorpay/cancel', [RazorpayController::class, 'cancel'])->name('razorpay.cancel');
-    Route::get('/razorpay/failed', [RazorpayController::class, 'failed'])->name('razorpay.failed');
+    Route::match(['get', 'post'], '/razorpay/failed', [RazorpayController::class, 'failed'])->name('razorpay.failed');
     Route::post('/order/return-exchange', [OrderController::class, 'returnExchange'])->name('return.exchange')->middleware('user');
     
 

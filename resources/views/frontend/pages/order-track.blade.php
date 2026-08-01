@@ -53,6 +53,7 @@
         justify-content: space-between;
         position: relative;
         padding: 20px 10px;
+        gap: 8px;
           
     }
 
@@ -123,6 +124,17 @@
     }
     /* responsive adjustments */
     @media (max-width:520px) {
+        .steps {
+            align-items: flex-start;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .step {
+            min-width: 95px;
+            padding: 0 6px;
+        }
+
         .step .title {
             font-size: 11px
         }
@@ -183,52 +195,7 @@
 
         <div class="tracker d-none" id="orderTracker" aria-label="Order progress tracker">
             <h2 style="margin:0 0 12px 0;font-size:18px">Order Status</h2>
-            <div class="steps" id="steps" style="--progress:0%">
-
-                <div class="step completed" data-step="1">
-                    <div class="icon" aria-hidden="true">
-                        <!-- check -->
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <path d="M20 6L9 17l-5-5"></path>
-                        </svg>
-                    </div>
-                    <div class="title">Order Placed</div>
-                </div>
-
-                <div class="step completed" data-step="2">
-                    <div class="icon" aria-hidden="true">
-                        <!-- check -->
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <path d="M20 6L9 17l-5-5"></path>
-                        </svg>
-                    </div>
-                    <div class="title">In Process</div>
-                </div>
-
-                <div class="step active" data-step="3">
-                    <div class="icon" aria-hidden="true">
-                        <!-- check -->
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <path d="M20 6L9 17l-5-5"></path>
-                        </svg>
-                    </div>
-                    <div class="title">Out For Delivery</div>
-                </div>
-
-                <div class="step pending" data-step="4">
-                    <div class="icon" aria-hidden="true">
-                        <!-- check -->
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round">
-                            <path d="M20 6L9 17l-5-5"></path>
-                        </svg>
-                    </div>
-                    <div class="title">Delivered</div>
-                </div>
-            </div>
+            <div class="steps" id="steps" style="--progress:0%"></div>
         </div>
     </div>
 </section>
@@ -236,6 +203,125 @@
 
 @push('scripts')
 <script>
+const trackerDefinitions = {
+    order: {
+        labels: ['Order Placed', 'In Process', 'Out For Delivery', 'Delivered'],
+        statuses: {
+            'new': 1,
+            'process': 2,
+            'out for delivery': 3,
+            'delivered': 4
+        }
+    },
+    cancel_order: {
+        labels: ['Order Placed', 'Cancelled'],
+        statuses: {
+            'cancel': 2,
+            'canceled': 2,
+            'cancelled': 2
+        }
+    },
+    return_order: {
+        labels: ['Return Requested', 'Return Approved', 'Pickup Scheduled', 'Picked Up', 'Return Delivered', 'Refund Processed'],
+        statuses: {
+            'pending': 1,
+            'approved': 2,
+            'awb_assigned': 2,
+            'pickup_generated': 3,
+            'processing': 3,
+            'return_pickup_generated': 3,
+            'return_picked_up': 4,
+            'return_in_transit': 4,
+            'return_out_for_delivery': 5,
+            'return_delivered': 5,
+            'refunded': 6,
+            'completed': 6
+        }
+    },
+    cancel_return_order: {
+        labels: ['Return Requested', 'Return Cancelled'],
+        statuses: {
+            'return request cancelled': 2,
+            'return_canceled': 2,
+            'return_cancelled': 2
+        }
+    },
+    exchange_order: {
+        labels: ['Exchange Requested', 'Exchange Approved', 'Pickup Generated', 'Picked Up', 'Return Delivered', 'Exchange Delivered'],
+        statuses: {
+            'pending': 1,
+            'exchange_requested': 1,
+            'exchange_approved': 2,
+            'exchange_pickup_generated': 3,
+            'exchange_picked_up': 4,
+            'exchange_in_transit': 4,
+            'exchange_return_delivered': 5,
+            'exchange_qc_passed': 5,
+            'exchange_out_for_delivery': 6,
+            'exchange_delivered': 6
+        }
+    },
+    cancel_exchange_order: {
+        labels: ['Exchange Requested', 'Exchange Cancelled'],
+        statuses: {
+            'exchange_cancelled': 2,
+            'exchange canceled': 2,
+            'exchange cancelled': 2
+        }
+    }
+};
+
+function normalizeStatus(status) {
+    return (status || '').toString().trim().toLowerCase();
+}
+
+function checkIcon() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
+}
+
+function renderTracker(labels) {
+    const stepsEl = document.getElementById('steps');
+    stepsEl.innerHTML = labels.map((label, index) => {
+        return '<div class="step pending" data-step="' + (index + 1) + '">' +
+            '<div class="icon" aria-hidden="true">' + checkIcon() + '</div>' +
+            '<div class="title">' + label + '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function getTrackerDefinition(res) {
+    const orderStatus = normalizeStatus(res.order_status);
+    const request = res.return_request || null;
+    const requestType = normalizeStatus(request?.type);
+    const requestStatus = normalizeStatus(request?.status);
+
+    if (requestType === 'return') {
+        if (['return request cancelled', 'return_canceled', 'return_cancelled'].includes(requestStatus)) {
+            return { definition: trackerDefinitions.cancel_return_order, status: requestStatus };
+        }
+
+        if (normalizeStatus(request?.refund_status) === 'processed') {
+            return { definition: trackerDefinitions.return_order, status: 'refunded' };
+        }
+
+        return { definition: trackerDefinitions.return_order, status: requestStatus };
+    }
+
+    if (requestType === 'exchange') {
+        if (['exchange_cancelled', 'exchange canceled', 'exchange cancelled'].includes(requestStatus)) {
+            return { definition: trackerDefinitions.cancel_exchange_order, status: requestStatus };
+        }
+
+        return { definition: trackerDefinitions.exchange_order, status: requestStatus };
+    }
+
+    if (['cancel', 'canceled', 'cancelled'].includes(orderStatus)) {
+        return { definition: trackerDefinitions.cancel_order, status: orderStatus };
+    }
+
+    return { definition: trackerDefinitions.order, status: orderStatus };
+}
+
 /* ---------- STEP TRACKER FUNCTION (GLOBAL) ---------- */
 function setStep(n) {
     const steps = document.querySelectorAll('.step');
@@ -281,27 +367,10 @@ $('#trackOrderForm').on('submit', function (e) {
             // Show tracker
             $('#orderTracker').removeClass('d-none');
 
-            let step = 1;
+            const tracker = getTrackerDefinition(res);
+            const step = tracker.definition.statuses[tracker.status] || 1;
 
-            switch (res.order_status) {
-                case 'new':
-                    step = 1;
-                    break;
-                case 'process':
-                    step = 2;
-                    break;
-                case 'out for delivery':
-                    step = 3;
-                    break;
-                case 'delivered':
-                    step = 4;
-                    break;
-                default:
-                    alert('Something went Wrong');
-                    $('#orderTracker').addClass('d-none');
-                    return;
-            }
-
+            renderTracker(tracker.definition.labels);
             setStep(step);
         },
         error: function (xhr) {

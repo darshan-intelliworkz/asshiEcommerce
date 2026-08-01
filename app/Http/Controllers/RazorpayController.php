@@ -6,13 +6,37 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Services\ShiprocketService;
 use GuzzleHttp\Client;
-use App\Models\ShipmentDetails;
 use App\Models\PaymentOrders;
 use App\Models\PaymentRefund;
 use Illuminate\Support\Facades\Log;
 
 class RazorpayController extends Controller
 {
+    private function cancelRazorpayOrder(string $orderNumber, string $paymentStatus = 'failed'): ?Order
+    {
+        $order = Order::where('order_number', $orderNumber)->first();
+
+        if (!$order) {
+            return null;
+        }
+
+        $order->update([
+            'payment_status' => $paymentStatus,
+            'status' => 'cancel',
+        ]);
+
+        PaymentOrders::where('order_id', $order->id)
+            ->whereIn('payment_status', ['pending', 'failed', 'refunded', 'paid'])
+            ->get()
+            ->each(function ($paymentOrder) use ($paymentStatus) {
+                $paymentOrder->update([
+                    'payment_status' => $paymentStatus,
+                ]);
+            });
+
+        return $order;
+    }
+
     public function pay($order_id)
     {
         $order = Order::findOrFail($order_id);
@@ -66,125 +90,110 @@ class RazorpayController extends Controller
 
     public function verify(Request $request)
     {
+        $request->validate([
+            'razorpay_payment_id' => 'required|string',
+            'razorpay_order_id' => 'required|string',
+            'razorpay_signature' => 'required|string',
+            'order_number' => 'nullable|string',
+        ]);
+
         $signature = $request->razorpay_signature;
         $paymentId = $request->razorpay_payment_id;
         $orderId   = $request->razorpay_order_id;
 
-        $order = Order::where('order_number', $request->order_number)->first();
+        // Razorpay payment verification uses: order_id | payment_id
+        $payload = $orderId . '|' . $paymentId;
+        $expectedSignature = hash_hmac('sha256', $payload, env('RAZORPAY_SECRET'));
+
+        if (!hash_equals($expectedSignature, (string) $signature)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid Razorpay signature'
+            ], 400);
+        }
+
+        $payment = PaymentOrders::where('razorpay_order_id', $orderId)->first();
+        if (!$payment || !$payment->order || $payment->order->order_number !== $request->order_number) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Payment order not found'
+            ], 404);
+        }
+
+        $order = $payment->order;
         $order->payment_status = 'paid';
         $order->save();
 
-        $payment = PaymentOrders::where('razorpay_order_id', $orderId)->first();
-        if ($payment) {
-            $payment->razorpay_payment_id = $paymentId;
-            $payment->razorpay_signature = $signature;
-            $payment->transaction_id = 'txn_' . $order->order_number;
-            $payment->payment_status = 'paid';
-            $payment->save();
-        }
+        $payment->razorpay_payment_id = $paymentId;
+        $payment->razorpay_signature = $signature;
+        $payment->transaction_id = 'txn_' . $order->order_number;
+        $payment->payment_status = 'paid';
+        $payment->save();
 
-        // GENERATE SHIPPING PROCESS WITH SHIPROCKET
-        $orderShipment = NULL;
-        $client = new \GuzzleHttp\Client(); 
         $shiprocketService = new ShiprocketService(new Client());
+        $shiprocketService->createCompleteShipmentForOrder($order);
 
-        // CREATE SHIPMENT ORDER
-        $orderResponse = $shiprocketService->createShipmentOrder($order);
-        $orderResponseData = $orderResponse->getData(true);
+        session()->put('thank_you_order_id', $order->id);
+        session()->forget('cart');
+        session()->forget('coupon');
 
-        Log::info('Order Shipment Response: ', $orderResponseData);
-        if($orderResponseData['status'] == true && isset($orderResponseData['shiprocket_response']) && strtolower($orderResponseData['shiprocket_response']['status']) == 'new' && $orderResponseData['shiprocket_response']['status_code'] == 1){
-            $orderShipment = new ShipmentDetails();
-            $orderShipment->order_id = $order->id;
-            $orderShipment->order_number = $order->order_number;
-            $orderShipment->shipment_status = 'New';
-            $orderShipment->shipment_id = $orderResponseData['shiprocket_response']['shipment_id'] ?? NULL;
-            $orderShipment->shipment_order_id = $orderResponseData['shiprocket_response']['order_id'] ?? NULL;
-            $orderShipment->shipment_response = json_encode($orderResponseData) ?? NULL;
-            
-            // ASSIGN COURIER AWB NUMBER
-            $orderAwbResponse = $shiprocketService->assignCourierAwb($orderShipment->shipment_id);
-            $orderAwbResponseData = $orderAwbResponse->getData(true);
-            log::info('Order AWB Response: ', $orderAwbResponseData);
-            if (isset($orderAwbResponseData['status'],$orderAwbResponseData['shiprocket_response']['awb_assign_status'],$orderAwbResponseData['shiprocket_response']['response']['data']['awb_code']) && $orderAwbResponseData['status'] === true && $orderAwbResponseData['shiprocket_response']['awb_assign_status'] == 1) {
-                $orderShipment->shipment_awb = $orderAwbResponseData['shiprocket_response']['response']['data']['awb_code'] ?? '';
-
-                // GENERATE LABEL
-                $orderLabelGenerateResponse = $shiprocketService->generateLabel($orderShipment->shipment_id);
-                $orderLabelGenerateResponseData = $orderLabelGenerateResponse->getData(true);
-                Log::info('Order Label Generate Response: ', $orderLabelGenerateResponseData);
-                if (isset($orderLabelGenerateResponseData['shiprocket_response']['label_created'],$orderLabelGenerateResponseData['shiprocket_response']['label_url']) && $orderLabelGenerateResponseData['shiprocket_response']['label_created'] == 1 && $orderLabelGenerateResponseData['shiprocket_response']['label_url'] !== '') {
-                    $orderShipment->label_pdf = $orderLabelGenerateResponseData['shiprocket_response']['label_url'] ?? NULL;
-                    
-                    // REQUEST FOR SHIPMENT PICKUP
-                    if($orderShipment->pickup_request_response == null){
-                        $orderShipmentPickupResponse = $shiprocketService->shipmentPickupRequest($orderShipment->shipment_id);
-                        $orderShipmentPickupResponseData = $orderShipmentPickupResponse->getData(true);
-                        Log::info('Order Shipment Pickup Response: ', $orderShipmentPickupResponseData);
-                        if (isset($orderShipmentPickupResponseData['shiprocket_response']['pickup_status'],$orderShipmentPickupResponseData['shiprocket_response']['response']['pickup_scheduled_date']) && $orderShipmentPickupResponseData['shiprocket_response']['pickup_status'] == 1) {
-                            $orderShipment->pickup_request_response = json_encode($orderShipmentPickupResponseData);
-                            $orderShipment->scheduled_at = $orderShipmentPickupResponseData['shiprocket_response']['response']['pickup_scheduled_date'] ?? NULL;
-
-                            // GENERATE MANIFEAST
-                            // $orderGenerateMenifeastResponse = $shiprocketService->generateManifeast($orderShipment->shipment_id);
-                            // $orderGenerateMenifeastResponseData = $orderGenerateMenifeastResponse->getData(true);
-                            // if (isset($orderGenerateMenifeastResponseData['shiprocket_response']['status'],$orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url']) && $orderGenerateMenifeastResponseData['status'] === true && $orderGenerateMenifeastResponseData['shiprocket_response']['status'] == 1 && $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] !== '') {
-                            //     $orderShipment->manifest_url = $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] ?? NULL;
-                            //     $orderShipment->shipment_status = 'Pickup Scheduled';
-                            // }
-                        }
-                    }
-                    // GENERATE MANIFEAST
-                    $orderGenerateMenifeastResponse = $shiprocketService->generateManifeast($orderShipment->shipment_id);
-                    $orderGenerateMenifeastResponseData = $orderGenerateMenifeastResponse->getData(true);
-                    Log::info('Order Generate Manifest Response: ', $orderGenerateMenifeastResponseData);
-                    if (isset($orderGenerateMenifeastResponseData['shiprocket_response']['status'],$orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url']) && $orderGenerateMenifeastResponseData['status'] === true && $orderGenerateMenifeastResponseData['shiprocket_response']['status'] == 1 && $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] !== '') {
-                        $orderShipment->manifest_url = $orderGenerateMenifeastResponseData['shiprocket_response']['manifest_url'] ?? NULL;
-                        $orderShipment->shipment_status = 'Pickup Scheduled';
-                    }
-                    
-                    // GENERATE INVOICE
-                    $orderGenerateInvoiceResponse = $shiprocketService->generateInvoice($orderShipment->shipment_order_id);
-                    $orderGenerateInvoiceResponseData = $orderGenerateInvoiceResponse->getData(true);
-                    Log::info('Order Generate Invoice Response: ', $orderGenerateInvoiceResponseData);
-                    if (isset($orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url']) && $orderGenerateInvoiceResponseData['status'] == true && $orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'] !== '') {
-                        $orderShipment->invoice_url = $orderGenerateInvoiceResponseData['shiprocket_response']['invoice_url'] ?? NULL;
-                    }
-                }
-            }
-            $orderShipment->save();
-            $order->status = 'process';
-            $order->save();
-        }
-
-        //return redirect()->route('myorders')->with('success', 'Payment Successful!');
         return response()->json([
             'status' => true,
-            'message' => 'Payment verified successfully'
+            'message' => 'Payment verified successfully',
+            'redirect_url' => route('thank.you', ['order_id' => $order->id])
         ]);
     }
 
     public function cancel(Request $request)
     {
-        Order::where('order_number', $request->order_number)
-            ->update(['payment_status' => 'cancelled', 'status' => 'cancel']);
+        $request->validate([
+            'order_number' => 'required|string',
+        ]);
+
+        $this->cancelRazorpayOrder($request->order_number, 'cancelled');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment Cancelled!',
+                'redirect_url' => route('myorders'),
+            ]);
+        }
 
         return redirect()->route('myorders')->with('success', 'Payment Cancelled!');
     }
 
     public function failed(Request $request)
     {
-        Order::where('order_number', $request->order_number)
-            ->update(['payment_status' => 'cancelled', 'status' => 'cancel']);
+        if (!$request->filled('order_number')) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Payment failed, but order details were missing. Please contact support if your order is still pending.',
+                    'redirect_url' => route('myorders'),
+                ], 422);
+            }
 
-        return redirect()->route('myorders')->with('success', 'Payment Failed!');
+            return redirect()->route('myorders')->with('error', 'Payment failed, but order details were missing. Please contact support if your order is still pending.');
+        }
+
+        $this->cancelRazorpayOrder($request->order_number, 'failed');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment Failed!',
+                'redirect_url' => route('myorders'),
+            ]);
+        }
+
+        return redirect()->route('myorders')->with('error', 'Payment Failed!');
     }
 
    
 
-    public function refundPayment($orderId)
+    public function refundPayment($orderId, $refundAmount = null)
     {
-        Log::info('Initiating refund for payment ID: ' . $orderId);
         $payment = PaymentOrders::where('order_id', $orderId)->firstOrFail();
         $razorpayPaymentId = $payment->razorpay_payment_id;
         Log::info('Payment record found: ' . $payment->amount .
@@ -219,24 +228,21 @@ class RazorpayController extends Controller
         $key = env('RAZORPAY_KEY');
         $secret = env('RAZORPAY_SECRET');
 
-        $fields = [
-            'amount' => (int) $paymentDetails['amount']
-        ];
-
+        $fields = [];
+        if ($refundAmount !== null) {
+            $fields['amount'] = (int) round($refundAmount * 100);
+        }
         $ch = curl_init();
-
-        curl_setopt($ch, CURLOPT_URL,
-            "https://api.razorpay.com/v1/payments/" .
-            $razorpayPaymentId .
-            "/refund"
-        );
+        $refundUrl = "https://api.razorpay.com/v1/payments/".$razorpayPaymentId ."/refund";
+        
+        curl_setopt($ch, CURLOPT_URL, $refundUrl);
 
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
 
         curl_setopt($ch, CURLOPT_USERPWD, $key . ":" . $secret);
 
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([]));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields));
 
         $result = curl_exec($ch);
 
@@ -260,7 +266,7 @@ class RazorpayController extends Controller
                 'payment_id' => $payment->id,
                 'razorpay_payment_id' => $razorpayPaymentId,
                 'razorpay_refund_id' => $response['id'],
-                'refund_amount' => $payment->amount,
+                'refund_amount' => $refundAmount ?? $payment->amount,
                 'refund_status' => 'processed',
                 'refund_response' => json_encode($response),
                 'refund_reason' => 'Customer requested refund',

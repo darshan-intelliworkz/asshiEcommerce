@@ -36,16 +36,31 @@
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Payment Status</h6>
-                    <h6><span class="badge badge-info">@if(isset($order->payment_status)) {{strtoupper($order->payment_status) ?? '-'}} @else {{''}} @endif</span></h6>
+                    <h6><span class="badge badge-dark">@if(isset($order->payment_status)) {{strtoupper($order->payment_status) ?? '-'}} @else {{''}} @endif</span></h6>
                 </div>
 
                 <div class="d-flex flex-column">
                      @php
                         use Carbon\Carbon;
                         use App\Models\OrderReturnRequest;
-                        $deliveredDate = isset($order->updated_at) ? Carbon::parse($order->updated_at) : null; // or delivered_at if you have that column
-                        $returnExpiryDate = $deliveredDate->copy()->addDays(7);
+                        $deliveredDate = null;
+                        if (isset($order->delivered_at) && $order->delivered_at) {
+                            $deliveredDate = Carbon::parse($order->delivered_at);
+                        } elseif (isset($order->status) && $order->status === 'delivered' && isset($order->updated_at)) {
+                            $deliveredDate = Carbon::parse($order->updated_at);
+                        }
+                        $returnExpiryDate = $deliveredDate ? $deliveredDate->copy()->addDays(7) : null;
                         $countReturnReqtuest = OrderReturnRequest::where('order_id', $order->id)->count();
+                        $exchangeCancelableStatuses = ['pending', 'exchange_requested'];
+                        $canCancelExchangeRequest = isset($latestReturnRequest)
+                            && $latestReturnRequest
+                            && $latestReturnRequest->return_type === 'exchange'
+                            && in_array($latestReturnRequest->status, $exchangeCancelableStatuses);
+                        $returnCancelableStatuses = ['pending', 'approved', 'awb_assigned', 'pickup_generated', 'processing', 'tracking_failed', 'awb_failed'];
+                        $canCancelReturnRequest = isset($latestReturnRequest)
+                            && $latestReturnRequest
+                            && $latestReturnRequest->return_type === 'return'
+                            && in_array($latestReturnRequest->status, $returnCancelableStatuses);
                     @endphp
 
                     @if(isset($latestReturnRequest) && $latestReturnRequest)
@@ -56,17 +71,27 @@
                         @endif
                     @endif
 
-                    @if(isset($order->status) && $order->status == 'process' || $order->status == 'new' || $order->status == 'out for delivery')
-                        <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}} , 'Cancell')">Cancel Order</button>
+                    @php
+                        $paymentStatus = strtolower($order->payment_status ?? '');
+                        $paymentMethod = strtolower($order->payment_method ?? '');
+                    @endphp
+
+                    @if(!empty($paymentMethod) && isset($order->status) && in_array($order->status, ['process', 'new']) &&
+                        (
+                            ($order->payment_method != 'cod' && $paymentStatus == 'paid') ||
+                            ($order->payment_method == 'cod' && $paymentStatus == 'unpaid')
+                        )
+                    )
+                        <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}}, 'Cancell', this)">Cancel Order</button>
                     @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
-                        @if(now()->lessThanOrEqualTo($returnExpiryDate))
+                        @if($returnExpiryDate && now()->lessThanOrEqualTo($returnExpiryDate))
                             @if(isset($activeReturnRequest) && $activeReturnRequest)
                                 <button class="btn btn-secondary" type="button" disabled>
                                     Request In Progress
                                 </button>
                             @else
                                 <button class="btn btn-danger" type="button"
-                                    onclick="Updateorder({{$order->id}} , 'Return')">
+                                    onclick="Updateorder({{$order->id}}, 'Return', this)">
                                     Request Return / Exchange
                                 </button>
                             @endif
@@ -82,9 +107,13 @@
                             </button>
 
                         @endif
+                    @elseif($canCancelExchangeRequest)
+                        <button class="btn btn-secondary mt-3" type="button" onclick="Updateorder({{$order->id}}, 'Exchange Cancel', this)" >
+                            Cancel Exchange Request
+                        </button>
                     {{-- @elseif(isset($order->status) && $order->status == 'return request') --}}
-                    @elseif(isset($order->status) && in_array($order->status, ['return request','return_pickup_generated']))
-                        <button class="btn btn-secondary" type="button" onclick="Updateorder({{$order->id}} , 'Return Cancel')" >
+                    @elseif($canCancelReturnRequest)
+                        <button class="btn btn-secondary mt-3" type="button" onclick="Updateorder({{$order->id}}, 'Return Cancel', this)" >
                             Cancel Return Request
                         </button>
                     @endif
@@ -306,6 +335,10 @@
                         <th>Shipping Charge:</th>
                         <td>₹ {{number_format($order->shiping_charges ?? $order->shiping_charges,2)}}</td>
                     </tr>
+                    <tr>
+                        <th>GST Charge:</th>
+                        <td>₹ {{number_format($order->total_gst_amount ?? $order->total_gst_amount,2)}}</td>
+                    </tr>
                     <tr class="fw-bold">
                         <th>Total Amount:</th>
                         <td>₹ {{number_format($order->total_amount,2)}}</td>
@@ -368,6 +401,23 @@
                         <form id="returnExchangeForm" method="POST" action="{{ route('return.exchange') }}" enctype="multipart/form-data">
                             @csrf
                             <input type="hidden" name="order_id" id="return_order_id" value="{{$order->id}}">
+
+                            @if ($errors->any())
+                                <div class="alert alert-danger" style="margin-bottom:18px; border-radius:8px; text-align:left;">
+                                    <strong>Please fix the following:</strong>
+                                    <ul style="margin:8px 0 0 18px; padding:0;">
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
+                            @if (session('return_exchange_modal') && session('error'))
+                                <div class="alert alert-danger" style="margin-bottom:18px; border-radius:8px; text-align:left;">
+                                    {{ session('error') }}
+                                </div>
+                            @endif
                             
                             @php
                                 $paymentsMethod  =  $order->payment_method 
@@ -396,11 +446,11 @@
                                 </label>
                                 <div class="return-type-options">
                                     <label class="return-type-option">
-                                        <input type="radio" name="request_type" value="return" >
+                                        <input type="radio" name="request_type" value="return" required {{ old('request_type', 'return') === 'return' ? 'checked' : '' }}>
                                         <span>Return</span>
                                     </label>
                                     <label class="return-type-option">
-                                        <input type="radio" name="request_type" value="exchange" >
+                                        <input type="radio" name="request_type" value="exchange" required {{ old('request_type') === 'exchange' ? 'checked' : '' }}>
                                         <span>Exchange</span>
                                     </label>
                                 </div>
@@ -428,7 +478,7 @@
                                             $modalPrice = json_decode($item->size_price,true) ?? [];
                                         @endphp
                                         <label class="return-product-option">
-                                            <input type="radio" name="cart_id" value="{{ $item->id }}" >
+                                            <input type="radio" name="cart_id" value="{{ $item->id }}" required {{ (string) old('cart_id') === (string) $item->id ? 'checked' : '' }}>
                                             <img src="{{ $modalImage }}" alt="{{ $item->product->title ?? 'Product' }}">
                                             <span>
                                                 <strong>{{ $item->product->title ?? 'N/A' }}</strong>
@@ -447,9 +497,14 @@
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Reason <span style="color:#e53935;">*</span>
                                 </label>
-                                <select name="reason" id="returnReason" class="wide"
+                                <select name="reason" id="returnReason" class="wide" required
                                     style="width:100%; padding:14px 16px; border-radius:10px; border:1px solid #e0e0e0; background:#fff; font-size:14px; color:#333; outline:none; font-family:inherit; box-sizing:border-box; display:block;">
                                     <option value="" disabled selected>Select a reason...</option>
+                                    <option value="Size/Fit Issue" {{ old('reason') === 'Size/Fit Issue' ? 'selected' : '' }}>Size/Fit Issue</option>
+                                    <option value="Wrong Item Received" {{ old('reason') === 'Wrong Item Received' ? 'selected' : '' }}>Wrong Item Received</option>
+                                    <option value="Color/Style differs from website" {{ old('reason') === 'Color/Style differs from website' ? 'selected' : '' }}>Color/Style differs from website</option>
+                                    <option value="Defective/Damaged" {{ old('reason') === 'Defective/Damaged' ? 'selected' : '' }}>Defective/Damaged</option>
+                                    <option value="Other" {{ old('reason') === 'Other' ? 'selected' : '' }}>Other</option>
                                 </select>
                             </div>
 
@@ -457,15 +512,15 @@
                             <div style="margin-bottom:22px;">
                                 <label style="display:block; font-size:13px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">
                                     Upload Product Images
-                                    <span style="font-weight:400; color:#999;">(optional)</span>
+                                    <span style="color:#e53935;">*</span>
                                 </label>
                                 <div style="position:relative; border:2px dashed #5db844; border-radius:14px; background:#f6fdf3; padding:40px 20px; text-align:center; cursor:pointer;">
-                                    <input type="file" name="images[]" id="returnImages" multiple accept="image/*" 
+                                    <input type="file" name="images[]" id="returnImages" multiple accept=".jpg,.jpeg,.png,.webp" required
                                         style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
                                     <div>
                                         <i class="fa fa-cloud-upload" style="font-size:44px; color:#5db844; display:block; margin-bottom:12px;"></i>
                                         <p style="margin:0 0 4px; font-size:15px; font-weight:600; color:#1a1a1a;">Drag &amp; Drop or Click to Upload</p>
-                                        <small style="color:#999; font-size:12px;">JPG, PNG images supported</small>
+                                        <small style="color:#999; font-size:12px;">JPG, PNG, WEBP up to 5 MB each</small>
                                     </div>
                                 </div>
                                 <!-- Preview -->
@@ -491,7 +546,7 @@
                             style="padding:12px 28px; border-radius:10px; border:1px solid #e0e0e0; background:#f5f5f5; font-size:14px; font-weight:500; color:#555; cursor:pointer; letter-spacing:0.02em;">
                             Cancel
                         </button>
-                        <button type="submit" form="returnExchangeForm"
+                        <button type="submit" form="returnExchangeForm" id="submitReturnExchangeButton"
                             style="padding:12px 28px; border-radius:10px; border:none; background:#5db844; color:#fff; font-size:14px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:8px; letter-spacing:0.02em;">
                             <i class="fa fa-paper-plane" style="font-size:13px;"></i>
                             Submit Request
@@ -614,6 +669,10 @@
         background: #f6fdf3;
     }
 
+    .btn-loading {
+        opacity: 0.8;
+        pointer-events: none;
+    }
 
 </style>    
 
@@ -696,7 +755,7 @@
 
 @push('scripts')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
-     @if ($errors->any())
+     @if ($errors->any() || session('return_exchange_modal'))
         <script>
             $(document).ready(function () {
                 $('#returnExchangeModal').modal('show');
@@ -705,15 +764,39 @@
     @endif
     <script>
 
-        function Updateorder(id, status){
-            // cancelorder(id, status);
+        function setButtonLoading(button, loadingText = 'Processing...') {
+            if (!button) {
+                return;
+            }
+
+            $(button).prop('disabled', true).addClass('btn-loading');
+            $(button).data('original-text', $(button).html());
+            $(button).html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + loadingText);
+        }
+
+        function resetButtonLoading(button) {
+            if (!button) {
+                return;
+            }
+
+            $(button).prop('disabled', false).removeClass('btn-loading');
+            const originalText = $(button).data('original-text');
+            if (originalText) {
+                $(button).html(originalText);
+            }
+        }
+
+        function Updateorder(id, status, button = null){
             if(status === 'Cancell'){
-                cancelorder(id);
+                cancelorder(id, status, button);
             } else if(status == 'Return') {
-                // returnorder(id , status);
+                setButtonLoading(button);
                 openReturnExchangeModal(id);
+                resetButtonLoading(button);
             }else if(status == 'Return Cancel') {
-                returnRequestCancel(id , status); 
+                returnRequestCancel(id , status, button); 
+            }else if(status == 'Exchange Cancel') {
+                exchangeRequestCancel(id , status, button);
             } else {
                 var result = false;
             }
@@ -755,9 +838,10 @@
         });
 
 
-        function cancelorder(id , status = 'Cancell'){
+        function cancelorder(id , status = 'Cancell', button = null){
             var result = confirm('Are you sure you want to cancel this order?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -771,19 +855,22 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
                     }
                 });
             }
         }
 
-        function returnorder(id , status = 'Return'){
+        function returnorder(id , status = 'Return', button = null){
             var result = confirm('Are you sure you want to return this order?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -797,19 +884,22 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
                     }
                 });
             }
         }
 
-        function returnRequestCancel(id , status = 'Return Cancel'){
+        function returnRequestCancel(id , status = 'Return Cancel', button = null){
             var result = confirm('Are you sure you want to cancel this return request?');
             if(result) {
+                setButtonLoading(button);
                 $.ajax({
                     url: "{{ route('order.update.status') }}",
                     method: "POST",
@@ -823,11 +913,42 @@
                             alert(response.message);
                             location.reload();
                         } else {
+                            resetButtonLoading(button);
                             alert('Failed to update order. Please try again.');
                         }
                     },
                     error: function() {
+                        resetButtonLoading(button);
                         alert('An error occurred while updating the order. Please try again.');
+                    }
+                });
+            }
+        }
+
+        function exchangeRequestCancel(id , status = 'Exchange Cancel', button = null){
+            var result = confirm('Are you sure you want to cancel this exchange request?');
+            if(result) {
+                setButtonLoading(button);
+                $.ajax({
+                    url: "{{ route('order.update.status') }}",
+                    method: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        id: id,
+                        status: status
+                    },
+                    success: function(response) {
+                        if(response.status) {
+                            alert(response.message);
+                            location.reload();
+                        } else {
+                            resetButtonLoading(button);
+                            alert(response.message || 'Failed to cancel exchange request. Please try again.');
+                        }
+                    },
+                    error: function() {
+                        resetButtonLoading(button);
+                        alert('An error occurred while cancelling the exchange request. Please try again.');
                     }
                 });
             }
@@ -846,45 +967,61 @@
                 "Defective/Damaged"
             ];
 
-            $('input[name="request_type"]').on('change', function() {
-                let type = $(this).val();
+            function refreshReasonOptions(type) {
                 let reasonSelect = $('#returnReason');
                 let currentVal = reasonSelect.val();
-                
-                if (type === 'exchange') {
-                    $('#exchangeNote').show();
-                } else {
-                    $('#exchangeNote').hide();
-                }
-                
-                reasonSelect.empty().append('<option value="" disabled selected>Select a reason...</option>');
-                
                 let reasons = type === 'exchange' ? exchangeReasons : returnReasons;
+
+                $('#exchangeNote').toggle(type === 'exchange');
+                reasonSelect.empty().append('<option value="" disabled selected>Select a reason...</option>');
+
                 reasons.forEach(function(r) {
-                    reasonSelect.append('<option value="' + r + '">' + r + '</option>');
+                    reasonSelect.append($('<option>', { value: r, text: r }));
                 });
-                
-                // If it was already selected and is in the new list, keep it
-                if(reasons.includes(currentVal)) {
+
+                if (reasons.includes(currentVal)) {
                     reasonSelect.val(currentVal);
-                } else if(type === 'exchange') {
-                    // Auto-select if there's only one option
+                } else if (type === 'exchange') {
                     reasonSelect.val("Defective/Damaged");
+                } else {
+                    reasonSelect.val('');
                 }
-                
-                if($.fn.niceSelect) {
+
+                if ($.fn.niceSelect) {
                     reasonSelect.niceSelect('update');
                 }
+            }
+
+            $('input[name="request_type"]').on('change', function() {
+                refreshReasonOptions($(this).val());
             });
 
-            // Trigger change if already checked (e.g. going back)
-            if($('input[name="request_type"]:checked').length > 0) {
-                $('input[name="request_type"]:checked').trigger('change');
+            if ($('input[name="request_type"]:checked').length === 0) {
+                $('input[name="request_type"][value="return"]').prop('checked', true);
+            }
+
+            refreshReasonOptions($('input[name="request_type"]:checked').val() || 'return');
+
+            if (!$.validator) {
+                return;
             }
 
             $.validator.addMethod("requiredFile", function(value, element) {
                 return element.files && element.files.length > 0;
             }, "Please upload Product Images.");
+
+            $.validator.addMethod("validReturnImages", function(value, element) {
+                if (!element.files || element.files.length === 0) {
+                    return true;
+                }
+
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                const maxSize = 5 * 1024 * 1024;
+
+                return Array.from(element.files).every(function(file) {
+                    return allowedTypes.includes(file.type) && file.size <= maxSize;
+                });
+            }, "Please upload JPG, PNG, or WEBP images up to 5 MB each.");
 
             $('#returnExchangeForm').validate({
                 ignore: [], // Ensure hidden or absolutely positioned inputs are validated
@@ -892,7 +1029,7 @@
                     request_type: { required: true },
                     cart_id: { required: true },
                     reason: { required: true },
-                    "images[]": { requiredFile: true },
+                    "images[]": { requiredFile: true, validReturnImages: true },
                     customer_upi_id: {
                         required: function(element) {
                             return $('input[name="request_type"]:checked').val() === 'return' && $('#customer_upi_id').length > 0;
@@ -903,7 +1040,10 @@
                     request_type: { required: "Please select a Request Type." },
                     cart_id: { required: "Please select a Product." },
                     reason: { required: "Please provide a Reason." },
-                    "images[]": { requiredFile: "Please upload Product Images." },
+                    "images[]": {
+                        requiredFile: "Please upload Product Images.",
+                        validReturnImages: "Please upload JPG, PNG, or WEBP images up to 5 MB each."
+                    },
                     customer_upi_id: { required: "Please provide your UPI ID for COD refund." }
                 },
                 errorElement: "span",
@@ -918,6 +1058,18 @@
                     } else {
                         error.insertAfter(element);
                     }
+                },
+                invalidHandler: function(event, validator) {
+                    if (validator.errorList.length) {
+                        validator.errorList[0].element.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }
+                },
+                submitHandler: function(form) {
+                    $('#submitReturnExchangeButton').prop('disabled', true).css('opacity', '0.7');
+                    form.submit();
                 }
             });
         });

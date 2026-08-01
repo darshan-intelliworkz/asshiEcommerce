@@ -79,8 +79,12 @@
 							<div class="contact">
 								<ul>
 									<li>@foreach($settings as $data) {{$data->address}} @endforeach</li>
-									<li>@foreach($settings as $data) {{$data->email}} @endforeach</li>
-									<li>@foreach($settings as $data) {{$data->phone}} @endforeach</li>
+									<li>@foreach($settings as $data) <a href="mailto:{{ $data->email }}">
+                                        {{ $data->email }}
+                                    </a> @endforeach</li>
+									<li>@foreach($settings as $data) <a href="tel:{{ preg_replace('/\s+/', '', $data->phone) }}">
+                                        {{ $data->phone }}
+                                    </a>  @endforeach</li>
 								</ul>
 							</div>
 							<!-- End Single Widget -->
@@ -102,15 +106,15 @@
 				<div class="inner">
 					<div class="row">
 						<div class="col-lg-6 col-12">
-							<div class="left">
+							<div class="center">
 								<p>Copyright © {{date('Y')}} Aashi Group  -  All Rights Reserved.</p>
 							</div>
 						</div>
-						<div class="col-lg-6 col-12">
+						{{-- <div class="col-lg-6 col-12">
 							<div class="right">
 								<img src="{{asset('public/backend/img/payments.png')}}" alt="#">
 							</div>
-						</div>
+						</div> --}}
 					</div>
 				</div>
 			</div>

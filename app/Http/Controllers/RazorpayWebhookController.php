@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Order;
 use App\Models\PaymentOrders;
 use App\Models\PaymentRefund;
+use App\Services\ShiprocketService;
 
 class RazorpayWebhookController extends Controller
 {
@@ -127,7 +128,6 @@ class RazorpayWebhookController extends Controller
     private function paymentCaptured($payload)
     {
         $payment = $payload['payload']['payment']['entity'];
-
         $paymentOrder = PaymentOrders::where(
             'razorpay_order_id',
             $payment['order_id']
@@ -146,8 +146,10 @@ class RazorpayWebhookController extends Controller
         $paymentOrder->order->update([
             'payment_status' => 'paid'
         ]);
-
         Log::channel('razorpay')->info('Payment Captured');
+
+        $shiprocketService = new ShiprocketService(new \GuzzleHttp\Client());
+        $shiprocketService->createCompleteShipmentForOrder($paymentOrder->order);
     }
 
     /*
@@ -174,7 +176,8 @@ class RazorpayWebhookController extends Controller
         ]);
 
         $paymentOrder->order->update([
-            'payment_status' => 'failed'
+            'payment_status' => 'failed',
+            'status' => 'cancel',
         ]);
 
         Log::channel('razorpay')->info('Payment Failed');
@@ -195,6 +198,19 @@ class RazorpayWebhookController extends Controller
         )->first();
 
         if (!$paymentOrder) {
+            return;
+        }
+
+        $existingRefund = PaymentRefund::where('razorpay_refund_id', $refund['id'])->first();
+        if ($existingRefund) {
+            $existingRefund->update([
+                'refund_status' => $refund['status'],
+                'refund_response' => json_encode($refund),
+                'refund_amount' => $refund['amount'] / 100,
+                'refund_reason' => $refund['notes']['reason'] ?? null,
+                'refunded_at' => now(),
+            ]);
+
             return;
         }
 

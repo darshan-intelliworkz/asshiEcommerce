@@ -40,7 +40,8 @@ class PaypalController extends Controller
         if(session('coupon')){
             $data['shipping_discount'] = session('coupon')['value'];
         }
-        Cart::where('user_id', auth()->user()->id)->where('order_id', null)->update(['order_id' => session()->get('id')]);
+        $orderId = session()->get('order_id', session()->get('id'));
+        Cart::where('user_id', auth()->user()->id)->where('order_id', null)->update(['order_id' => $orderId]);
 
         // return session()->get('id');
         $provider = new ExpressCheckout;
@@ -72,10 +73,12 @@ class PaypalController extends Controller
         // return $response;
   
         if (in_array(strtoupper($response['ACK']), ['SUCCESS', 'SUCCESSWITHWARNING'])) {
+            $orderId = session()->get('order_id', session()->get('id'));
+            session()->put('thank_you_order_id', $orderId);
             request()->session()->flash('success','You successfully pay from Paypal! Thank You');
             session()->forget('cart');
             session()->forget('coupon');
-            return redirect()->route('home');
+            return redirect()->route('thank.you', ['order_id' => $orderId]);
         }
   
         request()->session()->flash('error','Something went wrong please try again!!!');

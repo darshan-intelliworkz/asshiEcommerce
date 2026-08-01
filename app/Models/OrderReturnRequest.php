@@ -31,8 +31,11 @@ class OrderReturnRequest extends Model
         'refund_amount',
         'refund_id',
         'exchange_order_id',
+        'exchange_shipment_id',
         'create_return_payload',
         'create_return_response',
+        'exchange_create_payload',
+        'exchange_create_response',
         'awb_payload',
         'awb_response',
         'pickup_payload',
@@ -44,6 +47,7 @@ class OrderReturnRequest extends Model
         'rejected_at',
         'pickup_completed_at',
         'refunded_at',
+        'exchange_approved_at',
     ];
 
     protected $casts = [
@@ -55,6 +59,10 @@ class OrderReturnRequest extends Model
         'create_return_payload' => 'array',
 
         'create_return_response' => 'array',
+
+        'exchange_create_payload' => 'array',
+
+        'exchange_create_response' => 'array',
 
         'awb_payload' => 'array',
 
@@ -79,6 +87,8 @@ class OrderReturnRequest extends Model
         'pickup_completed_at' => 'datetime',
 
         'refunded_at' => 'datetime',
+
+        'exchange_approved_at' => 'datetime',
     ];
 
     public function order()
