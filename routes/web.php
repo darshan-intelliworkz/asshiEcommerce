@@ -116,7 +116,7 @@ use App\Http\Controllers\ShiprocketWebhookController;
     Route::get('/razorpay/pay/{order_id}', [RazorpayController::class, 'pay'])->name('razorpay.pay');
     Route::post('/razorpay/verify', [RazorpayController::class, 'verify'])->name('razorpay.verify');
     Route::post('/razorpay/cancel', [RazorpayController::class, 'cancel'])->name('razorpay.cancel');
-    Route::get('/razorpay/failed', [RazorpayController::class, 'failed'])->name('razorpay.failed');
+    Route::match(['get', 'post'], '/razorpay/failed', [RazorpayController::class, 'failed'])->name('razorpay.failed');
     Route::post('/order/return-exchange', [OrderController::class, 'returnExchange'])->name('return.exchange')->middleware('user');
     
 

@@ -12,6 +12,31 @@ use Illuminate\Support\Facades\Log;
 
 class RazorpayController extends Controller
 {
+    private function cancelRazorpayOrder(string $orderNumber, string $paymentStatus = 'failed'): ?Order
+    {
+        $order = Order::where('order_number', $orderNumber)->first();
+
+        if (!$order) {
+            return null;
+        }
+
+        $order->update([
+            'payment_status' => $paymentStatus,
+            'status' => 'cancel',
+        ]);
+
+        PaymentOrders::where('order_id', $order->id)
+            ->whereIn('payment_status', ['pending', 'failed', 'refunded', 'paid'])
+            ->get()
+            ->each(function ($paymentOrder) use ($paymentStatus) {
+                $paymentOrder->update([
+                    'payment_status' => $paymentStatus,
+                ]);
+            });
+
+        return $order;
+    }
+
     public function pay($order_id)
     {
         $order = Order::findOrFail($order_id);
@@ -121,9 +146,18 @@ class RazorpayController extends Controller
 
     public function cancel(Request $request)
     {
-        if ($request->filled('order_number')) {
-            Order::where('order_number', $request->order_number)
-                ->update(['payment_status' => 'cancelled', 'status' => 'cancel']);
+        $request->validate([
+            'order_number' => 'required|string',
+        ]);
+
+        $this->cancelRazorpayOrder($request->order_number, 'cancelled');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment Cancelled!',
+                'redirect_url' => route('myorders'),
+            ]);
         }
 
         return redirect()->route('myorders')->with('success', 'Payment Cancelled!');
@@ -132,11 +166,26 @@ class RazorpayController extends Controller
     public function failed(Request $request)
     {
         if (!$request->filled('order_number')) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Payment failed, but order details were missing. Please contact support if your order is still pending.',
+                    'redirect_url' => route('myorders'),
+                ], 422);
+            }
+
             return redirect()->route('myorders')->with('error', 'Payment failed, but order details were missing. Please contact support if your order is still pending.');
         }
 
-        Order::where('order_number', $request->order_number)
-            ->update(['payment_status' => 'cancelled', 'status' => 'cancel']);
+        $this->cancelRazorpayOrder($request->order_number, 'failed');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment Failed!',
+                'redirect_url' => route('myorders'),
+            ]);
+        }
 
         return redirect()->route('myorders')->with('error', 'Payment Failed!');
     }

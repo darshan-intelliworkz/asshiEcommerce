@@ -176,7 +176,8 @@ class RazorpayWebhookController extends Controller
         ]);
 
         $paymentOrder->order->update([
-            'payment_status' => 'failed'
+            'payment_status' => 'failed',
+            'status' => 'cancel',
         ]);
 
         Log::channel('razorpay')->info('Payment Failed');

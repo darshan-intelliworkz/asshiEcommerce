@@ -11,8 +11,20 @@
                                 $settings=DB::table('settings')->get();
                                 
                             @endphp
-                            <li><i class="ti-headphone-alt"></i>@foreach($settings as $data) {{$data->phone}} @endforeach</li>
-                            <li><i class="ti-email"></i> @foreach($settings as $data) {{$data->email}} @endforeach</li>
+                            <li><i class="ti-headphone-alt"></i>
+                                @foreach($settings as $data) 
+                                    <a href="tel:{{ preg_replace('/\s+/', '', $data->phone) }}">
+                                        {{ $data->phone }}
+                                    </a> 
+                                @endforeach
+                            </li>
+                            <li><i class="ti-email"></i> 
+                                @foreach($settings as $data) 
+                                    <a href="mailto:{{ $data->email }}">
+                                        {{ $data->email }}
+                                    </a>
+                                @endforeach
+                            </li>
                         </ul>
                     </div>
                     <!--/ End Top Left -->

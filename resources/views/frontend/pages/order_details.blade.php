@@ -71,7 +71,17 @@
                         @endif
                     @endif
 
-                    @if(isset($order->status) && in_array($order->status, ['process', 'new']))
+                    @php
+                        $paymentStatus = strtolower($order->payment_status ?? '');
+                        $paymentMethod = strtolower($order->payment_method ?? '');
+                    @endphp
+
+                    @if(!empty($paymentMethod) && isset($order->status) && in_array($order->status, ['process', 'new']) &&
+                        (
+                            ($order->payment_method != 'cod' && $paymentStatus == 'paid') ||
+                            ($order->payment_method == 'cod' && $paymentStatus == 'unpaid')
+                        )
+                    )
                         <button class="btn btn-danger" type="button" onclick="Updateorder({{$order->id}}, 'Cancell', this)">Cancel Order</button>
                     @elseif($order->status == 'delivered' && $countReturnReqtuest == 0)
                         @if($returnExpiryDate && now()->lessThanOrEqualTo($returnExpiryDate))
