@@ -35,14 +35,24 @@ class HomeController extends Controller
 
     public function profile(){
         $profile=Auth()->user();
-        // return $profile;
-        return view('user.users.profile')->with('profile',$profile);
+        $orders = \App\Models\Order::where('user_id', auth()->user()->id)->orderBy('id','DESC')->paginate(10);
+        return view('user.users.profile')->with('profile',$profile)->with('orders', $orders);
     }
 
     public function profileUpdate(Request $request,$id){
         // return $request->all();
         $user=User::findOrFail($id);
         $data=$request->all();
+        
+        if ($request->hasFile('photo')) {
+            $image = $request->file('photo');
+            $imageName = time().'_'.rand(1111,9999).'.'.$image->getClientOriginalExtension();
+            $image->move(public_path('profile_images'), $imageName);
+            $data['photo'] = '/profile_images/'.$imageName;
+        } else {
+            unset($data['photo']);
+        }
+
         $status=$user->fill($data)->save();
         if($status){
             request()->session()->flash('success','Successfully updated your profile');

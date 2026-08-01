@@ -32,6 +32,11 @@ use App\Http\Controllers\ShiprocketWebhookController;
     |
     */
 
+    // Email template preview
+    Route::get('/email-preview', function () {
+        return view('emails.template');
+    });
+
     // CACHE CLEAR ROUTE
     Route::get('cache-clear', function () {
         Artisan::call('optimize:clear');
@@ -46,6 +51,11 @@ use App\Http\Controllers\ShiprocketWebhookController;
 
     Auth::routes(['register' => false, 'login' => false, 'reset' => false, 'verify' => false,]);
 
+    Route::get('password/reset', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
+    Route::post('password/email', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::get('password/reset/{token}', [\App\Http\Controllers\Auth\ResetPasswordController::class, 'showResetForm'])->name('password.reset');
+    Route::post('password/reset', [\App\Http\Controllers\Auth\ResetPasswordController::class, 'reset'])->name('password.update');
+
     Route::get('user/login', [FrontendController::class, 'login'])->name('login.form');
     Route::post('user/login', [FrontendController::class, 'loginSubmit'])->name('login.submit');
     Route::get('user/logout', [FrontendController::class, 'logout'])->name('user.logout');
@@ -53,7 +63,7 @@ use App\Http\Controllers\ShiprocketWebhookController;
     Route::get('user/register', [FrontendController::class, 'register'])->name('register.form');
     Route::post('user/register', [FrontendController::class, 'registerSubmit'])->name('register.submit');
 // Reset password
-    Route::get('password-reset', [FrontendController::class, 'showResetForm'])->name('password.reset');
+//  Route::get('password-reset', [FrontendController::class, 'showResetForm'])->name('password.reset');
 // Socialite
     // Route::get('login/{provider}/', [LoginController::class, 'redirect'])->name('login.redirect');
     // Route::get('login/{provider}/callback/', [LoginController::class, 'Callback'])->name('login.callback');

@@ -53,7 +53,12 @@
                                 <div class="col-12">
                                     <div class="form-group">
                                         <label>Your Password<span>*</span></label>
-                                        <input type="password" name="password" placeholder="" required="required" value="{{old('password')}}">
+                                        <div style="position: relative;">
+                                            <input type="password" name="password" id="reg_password" placeholder="" required="required" value="{{old('password')}}" style="padding-right: 45px;">
+                                            <span onclick="togglePassword('reg_password', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; z-index: 10; color: #666;">
+                                                <i class="fa fa-eye"></i>
+                                            </span>
+                                        </div>
                                         @error('password')
                                             <span class="text-danger">{{$message}}</span>
                                         @enderror
@@ -62,20 +67,26 @@
                                 <div class="col-12">
                                     <div class="form-group">
                                         <label>Confirm Password<span>*</span></label>
-                                        <input type="password" name="password_confirmation" placeholder="" required="required" value="{{old('password_confirmation')}}">
+                                        <div style="position: relative;">
+                                            <input type="password" name="password_confirmation" id="reg_password_conf" placeholder="" required="required" value="{{old('password_confirmation')}}" style="padding-right: 45px;">
+                                            <span onclick="togglePassword('reg_password_conf', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; z-index: 10; color: #666;">
+                                                <i class="fa fa-eye"></i>
+                                            </span>
+                                        </div>
                                         @error('password_confirmation')
                                             <span class="text-danger">{{$message}}</span>
                                         @enderror
                                     </div>
                                 </div>
                                 <div class="col-12">
-                                    <div class="form-group login-btn">
-                                        <button class="btn" type="submit">Register</button>
-                                        <a href="{{route('login.form')}}" class="btn">Login</a>
-                                        {{-- OR
-                                        <a href="{{route('login.redirect','facebook')}}" class="btn btn-facebook"><i class="ti-facebook"></i></a>
-                                        <a href="{{route('login.redirect','github')}}" class="btn btn-github"><i class="ti-github"></i></a>
-                                        <a href="{{route('login.redirect','google')}}" class="btn btn-google"><i class="ti-google"></i></a> --}}
+                                    <div class="form-group login-btn mb-3">
+                                        <button class="btn" type="submit" style="width: 100%; border-radius: 0;">Register</button>
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <span style="color: #666;">Already have an account?</span> 
+                                        <a href="{{route('login.form')}}" style="color: #5db845; font-weight: 600; text-decoration: none; margin-left: 5px;">
+                                            Login here
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -115,4 +126,19 @@
         background:rgb(243, 26, 26) !important;
     }
 </style>
+<script>
+    function togglePassword(inputId, iconSpan) {
+        var input = document.getElementById(inputId);
+        var icon = iconSpan.querySelector('i');
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        } else {
+            input.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
+    }
+</script>
 @endpush

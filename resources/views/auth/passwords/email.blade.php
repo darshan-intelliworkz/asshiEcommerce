@@ -1,66 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
+@extends('frontend.layouts.master')
 
-<head>
-@include('backend.layouts.head')
+@section('title','Aashi-Ecommerce || Forgot Password')
 
-</head>
-
-<body class="bg-gradient-primary">
-
-  <div class="container">
-
-    <!-- Outer Row -->
-    <div class="row justify-content-center">
-
-      <div class="col-xl-10 col-lg-12 col-md-9">
-
-        <div class="card o-hidden border-0 shadow-lg my-5">
-          <div class="card-body p-0">
-            <!-- Nested Row within Card Body -->
+@section('main-content')
+    <!-- Breadcrumbs -->
+    <div class="breadcrumbs">
+        <div class="container">
             <div class="row">
-              <div class="col-lg-6 d-none d-lg-block bg-password-image"></div>
-              <div class="col-lg-6">
-                <div class="p-5">
-                  <div class="text-center">
-                    <h1 class="h4 text-gray-900 mb-2">Forgot Your Password?</h1>
-                    <p class="mb-4">We get it, stuff happens. Just enter your email address below and we'll send you a link to reset your password!</p>
-                  </div>
-                    @if (session('status'))
-                        <div class="alert alert-success" role="alert">
-                            {{ session('status') }}
-                        </div>
-                    @endif
-                  <form class="user"  method="POST" action="{{ route('password.email') }}">
-                    @csrf
-                    <div class="form-group">
-                      <input type="email" class="form-control form-control-user @error('email') is-invalid @enderror" id="exampleInputEmail" aria-describedby="emailHelp" placeholder="Enter Email Address..." name="email" value="{{ old('email') }}" required autocomplete="email" autofocus>
-                        @error('email')
-                            <span class="invalid-feedback" role="alert">
-                                <strong>{{ $message }}</strong>
-                            </span>
-                        @enderror
+                <div class="col-12">
+                    <div class="bread-inner">
+                        <ul class="bread-list">
+                            <li><a href="{{route('home')}}">Home<i class="ti-arrow-right"></i></a></li>
+                            <li class="active"><a href="javascript:void(0);">Forgot Password</a></li>
+                        </ul>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-user btn-block">
-                      Reset Password
-                    </button>
-                  </form>
-                  <hr>
-                  <div class="text-center">
-                    <a class="small" href="{{route('login')}}">Already have an account? Login!</a>
-                  </div>
                 </div>
-              </div>
             </div>
-          </div>
         </div>
-
-      </div>
-
     </div>
+    <!-- End Breadcrumbs -->
+            
+    <!-- Shop Login -->
+    <section class="shop login section">
+        <div class="container">
+            <div class="row"> 
+                <div class="col-lg-6 offset-lg-3 col-12">
+                    <div class="login-form">
+                        <h2>Forgot Password</h2>
+                        <p>Please enter your email address to request a password reset link.</p>
+                        
+                        @if (session('status'))
+                            <div class="alert alert-success" role="alert">
+                                {{ session('status') }}
+                            </div>
+                        @endif
 
-  </div>
-
-</body>
-
-</html>
+                        <!-- Form -->
+                        <form class="form" method="POST" action="{{ route('password.email') }}">
+                            @csrf
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="form-group">
+                                        <label>Your Email<span>*</span></label>
+                                        <input type="email" name="email" placeholder="" required="required" value="{{ old('email') }}" autofocus>
+                                        @error('email')
+                                            <span class="text-danger">{{$message}}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <div class="form-group login-btn">
+                                        <button class="btn" type="submit">Send Password Reset Link</button>
+                                        <a href="{{route('login.form')}}" class="btn" style="margin-left: 10px;">Login</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                        <!--/ End Form -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!--/ End Login -->
+@endsection

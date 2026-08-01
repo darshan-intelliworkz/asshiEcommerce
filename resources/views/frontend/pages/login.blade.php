@@ -44,30 +44,39 @@
                                 <div class="col-12">
                                     <div class="form-group">
                                         <label>Your Password<span>*</span></label>
-                                        <input type="password" name="password" placeholder="" required="required" value="{{old('password')}}">
+                                        <div style="position: relative;">
+                                            <input type="password" name="password" id="login_password" placeholder="" required="required" value="{{old('password')}}" style="padding-right: 45px;">
+                                            <span onclick="togglePassword('login_password', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; z-index: 10; color: #666;">
+                                                <i class="fa fa-eye"></i>
+                                            </span>
+                                        </div>
                                         @error('password')
                                             <span class="text-danger">{{$message}}</span>
                                         @enderror
                                     </div>
                                 </div>
                                 <div class="col-12">
-                                    <div class="form-group login-btn">
-                                        <button class="btn" type="submit">Login</button>
-                                        <a href="{{route('register.form')}}" class="btn">Register</a>
-                                        {{-- OR
-                                        <a href="{{route('login.redirect','facebook')}}" class="btn btn-facebook"><i class="ti-facebook"></i></a>
-                                        <a href="{{route('login.redirect','github')}}" class="btn btn-github"><i class="ti-github"></i></a>
-                                        <a href="{{route('login.redirect','google')}}" class="btn btn-google"><i class="ti-google"></i></a> --}}
-
+                                    <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+                                        <div class="checkbox m-0">
+                                            <label class="checkbox-inline m-0" for="2" style="cursor: pointer;">
+                                                <input name="news" id="2" type="checkbox" style="margin-right: 5px;"> Remember me
+                                            </label>
+                                        </div>
+                                        @if (Route::has('password.request'))
+                                            <a class="lost-pass m-0" href="{{ route('password.request') }}" style="color: #5db845; text-decoration: none;">
+                                                Lost your password?
+                                            </a>
+                                        @endif
                                     </div>
-                                    <div class="checkbox">
-                                        <label class="checkbox-inline" for="2"><input name="news" id="2" type="checkbox">Remember me</label>
+                                    <div class="form-group login-btn mb-3">
+                                        <button class="btn" type="submit" style="width: 100%; border-radius: 0;">Login</button>
                                     </div>
-                                    {{-- @if (Route::has('password.request'))
-                                        <a class="lost-pass" href="{{ route('password.reset') }}">
-                                            Lost your password?
+                                    <div class="text-center mt-3">
+                                        <span style="color: #666;">Don't have an account?</span> 
+                                        <a href="{{route('register.form')}}" style="color: #5db845; font-weight: 600; text-decoration: none; margin-left: 5px;">
+                                            Register here
                                         </a>
-                                    @endif --}}
+                                    </div>
                                 </div>
                             </div>
                         </form>
@@ -105,4 +114,19 @@
         background:rgb(243, 26, 26) !important;
     }
 </style>
+<script>
+    function togglePassword(inputId, iconSpan) {
+        var input = document.getElementById(inputId);
+        var icon = iconSpan.querySelector('i');
+        if (input.type === "password") {
+            input.type = "text";
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        } else {
+            input.type = "password";
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
+    }
+</script>
 @endpush
