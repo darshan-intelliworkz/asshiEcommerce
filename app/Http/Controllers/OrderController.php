@@ -511,6 +511,18 @@ class OrderController extends Controller
             request()->session()->flash('error', 'Order not found');
             return back()->withInput()->with('return_exchange_modal', true);
         }
+        // Prevent placing another exchange request if an exchange has already been approved for this order
+        if ($request->request_type === 'exchange') {
+            $approvedExchangeExists = OrderReturnRequest::where('order_id', $order->id)
+                ->where('return_type', 'exchange')
+                ->where('status', 'exchange_approved')
+                ->exists();
+
+            if ($approvedExchangeExists) {
+                request()->session()->flash('error', 'An exchange has already been approved for this order. You cannot place another exchange request.');
+                return back()->withInput()->with('return_exchange_modal', true);
+            }
+        }
         
         if ($order->payment_method === 'cod' && $request->request_type === 'return') {
             $request->validate([                                        
