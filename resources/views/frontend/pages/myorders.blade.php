@@ -41,18 +41,10 @@
                         <td>{{$order->order_number}}</td>
                         <td>₹{{number_format($order->total_amount,2)}}</td>
                         <td>
-                            @if($order->status=='new')
-                            <span class="badge badge-primary">{{strtoupper($order->status)}}</span>
-                            @elseif($order->status=='process')
-                            <span class="badge badge-warning">{{strtoupper($order->status)}}</span>
-                            @elseif($order->status=='delivered')
-                            <span class="badge badge-success">{{strtoupper($order->status)}}</span>
-                            @else
-                            <span class="badge badge-danger">{{strtoupper($order->status)}}</span>
-                            @endif
+                           <span class="badge badge-info">{{strtoupper($order->status)}}</span>
                         </td>
                         <td>
-                            {{strtoupper($order->payment_status) ?? '-'}}
+                           <span class="badge badge-dark">{{strtoupper($order->payment_status) ?? '-'}}</span>
                         </td>
                         <td class="text-center">
                             <a href="{{ route('order.dertails',$order->id )}}" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> View</a>

@@ -36,7 +36,7 @@
                 </div>
                 <div class="d-flex flex-column">
                     <h6>Payment Status</h6>
-                    <h6><span class="badge badge-info">@if(isset($order->payment_status)) {{strtoupper($order->payment_status) ?? '-'}} @else {{''}} @endif</span></h6>
+                    <h6><span class="badge badge-dark">@if(isset($order->payment_status)) {{strtoupper($order->payment_status) ?? '-'}} @else {{''}} @endif</span></h6>
                 </div>
 
                 <div class="d-flex flex-column">

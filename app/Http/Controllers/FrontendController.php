@@ -773,8 +773,14 @@ class FrontendController extends Controller
         }
 
         $data=$request->all();
-        // dd($data);
-        $check=$this->create($data);
+        //$check=$this->create($data);
+        $check = User::create([
+            'name'=>$data['name'],
+            'email'=>$data['email'],
+            'password'=>Hash::make($data['password']),
+            'status'=>'active'
+            ]);
+
         Session::put('user',$data['email']);
         if($check){
             request()->session()->flash('success','Successfully registered');
@@ -785,14 +791,7 @@ class FrontendController extends Controller
             return back();
         }
     }
-    public function create(array $data){
-        return User::create([
-            'name'=>$data['name'],
-            'email'=>$data['email'],
-            'password'=>Hash::make($data['password']),
-            'status'=>'active'
-            ]);
-    }
+    
     // Reset password
     public function showResetForm(){
         return view('auth.passwords.old-reset');
