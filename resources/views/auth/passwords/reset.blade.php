@@ -19,16 +19,16 @@
         </div>
     </div>
     <!-- End Breadcrumbs -->
-            
+
     <!-- Shop Login -->
     <section class="shop login section">
         <div class="container">
-            <div class="row"> 
+            <div class="row">
                 <div class="col-lg-6 offset-lg-3 col-12">
                     <div class="login-form">
                         <h2>Reset Password</h2>
                         <p>Please enter your new password to reset it.</p>
-                        
+
                         <!-- Form -->
                         <form class="form" method="POST" action="{{ route('password.update') }}">
                             @csrf
@@ -69,10 +69,16 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="col-12">
-                                    <div class="form-group login-btn">
-                                        <button class="btn" type="submit">Reset Password</button>
+                                    <div class="form-group login-btn mb-3">
+                                        <button class="btn" type="submit" style="width: 100%; border-radius: 0;">Reset Password</button>
+                                    </div>
+                                    <div class="text-center mt-3">
+                                        <span style="color: #666;">Remember your password?</span>
+                                        <a href="{{route('login.form')}}" style="color: #5db845; font-weight: 600; text-decoration: none; margin-left: 5px;">
+                                            Login here
+                                        </a>
                                     </div>
                                 </div>
                             </div>
