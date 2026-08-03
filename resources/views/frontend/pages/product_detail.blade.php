@@ -458,7 +458,7 @@
                                              data-toggle="collapse" 
                                              data-target="#collapseThree">
                                           <i class="fa fa-exchange accordion-left-icon"></i>
-                                          15-Day Easy Exchange
+                                          7-Day Easy Exchange
                                           <span class="plus-minus">
                                           <i class="fa fa-plus"></i>
                                           <i class="fa fa-minus"></i>
@@ -469,14 +469,15 @@
                                           <div class="card-body">
                                              <ul>
                                                 <li>Free Exchange Available.</li>
-                                                <li>Request an exchange within 15 days of delivery.</li>
+                                                <li>Request an exchange within 7 days of delivery.</li>
                                                 {{-- 
                                                 <li>Click here to exchange your product.(Link Paste here)</li>
                                                 --}}
                                                 <li>Exchange is not applicable on free products or promotional items.</li>
-                                                <li>Size and color exchanges are subject to stock availability.</li>
+                                                {{-- <li>Size and color exchanges are subject to stock availability.</li> --}}
                                                 <li>Only one-time exchange is allowed per order.</li>
-                                                <li>If you receive a wrong product, please share an unboxing video of the package for verification.</li>
+                                                {{-- <li>If you receive a wrong product, please share an unboxing video of the package for verification.</li> --}}
+                                                <li>If you receive a wrong product, please share an images of the Product for verification.</li>
                                              </ul>
                                           </div>
                                        </div>
@@ -508,11 +509,11 @@
                                                 <li>Refunds will be processed to the original payment method after the returned item is received and verified.</li>
                                                 <li>For Cash on Delivery (COD) orders, customers will be required to provide bank account details for refund processing.</li>
                                                 <li>Refunds are usually initiated within 2–4 working days after receiving the returned product.</li>
-                                                <li>If you receive a wrong product, please share an unboxing video of the package for verification purposes.</li>
+                                                <li>If you receive a wrong product, please share an images of the Product for verification purposes.</li>
                                                 <li>In case your pin code is not serviceable for reverse pickup, you may be required to self-ship the product.</li>
                                                 <li>Please do not accept the package if it appears tampered with or damaged.</li>
                                                 <li>Do not share the OTP (One-Time Password) with the delivery partner unless you have received the package</li>
-                                                <li>To cancel an order, please contact us through the “Contact Us” page. Our team will respond within 24 hours.</li>
+                                                {{-- <li>To cancel an order, please contact us through the “Contact Us” page. Our team will respond within 24 hours.</li> --}}
                                              </ul>
                                           </div>
                                        </div>
