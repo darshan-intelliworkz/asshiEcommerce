@@ -77,7 +77,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="product-info">
-                        <div class="nav-main text-center">
+                        <div class="nav-main text-center mb-5">
                             <!-- Tab Navigation -->
                             <ul class="nav nav-tabs justify-content-center" id="productTabs" role="tablist">
                                 <li class="nav-item">
@@ -106,18 +106,8 @@
                             <div class="tab-pane fade show active" id="all-products" role="tabpanel">
                                 <div class="row">
                                     @foreach($product_lists as $product)
-                                        <div class="col-sm-6 col-md-4 col-lg-3 p-b-35">
-                                            <div class="single-product">
-                                                <div class="product-img">
-                                                    <a href="{{route('product-detail',$product->slug)}}">
-                                                        @php $photo = explode(',', $product->photo); @endphp
-                                                        <img class="default-img" src="{{asset('public/'.$photo[0])}}" alt="{{$product->title}}">
-                                                    </a>
-                                                </div>
-                                                <div class="product-content text-center">
-                                                    <h3><a href="{{route('product-detail',$product->slug)}}">{{$product->product_code}}</a></h3>
-                                                </div>
-                                            </div>
+                                        <div class="col-6 col-md-4 col-lg-3 d-flex align-items-stretch">
+                                            @include('frontend.layouts._trending_card', ['product' => $product])
                                         </div>
                                     @endforeach
                                 </div>
@@ -126,7 +116,8 @@
                             <!-- Category Specific Products -->
                             @foreach($categories as $category)
                                 @php
-                                    $categoryProducts = \App\Models\Product::where('status', 'active')
+                                    $categoryProducts = \App\Models\Product::with(['cat_info', 'getReview'])
+                                        ->where('status', 'active')
                                         ->where('cat_id', $category->id)
                                         ->whereNull('deleted_at')
                                         ->where('is_featured', 1)
@@ -141,18 +132,8 @@
                                 <div class="tab-pane fade" id="category-{{$category->id}}" role="tabpanel">
                                     <div class="row">
                                         @foreach($categoryProducts as $product)
-                                            <div class="col-sm-6 col-md-4 col-lg-3 p-b-35">
-                                                <div class="single-product">
-                                                    <div class="product-img">
-                                                        <a href="{{route('product-detail',$product->slug)}}">
-                                                            @php $photo = explode(',', $product->photo); @endphp
-                                                            <img class="default-img" src="{{asset('public/'.$photo[0])}}" alt="{{$product->title}}">
-                                                        </a>
-                                                    </div>
-                                                    <div class="product-content text-center">
-                                                        <h3><a href="{{route('product-detail',$product->slug)}}">{{$product->product_code}}</a></h3>
-                                                    </div>
-                                                </div>
+                                            <div class="col-6 col-md-4 col-lg-3 d-flex align-items-stretch">
+                                                @include('frontend.layouts._trending_card', ['product' => $product])
                                             </div>
                                         @endforeach
                                     </div>
@@ -302,8 +283,40 @@
 
 
 <!-- Modal -->
-@if($product_lists)
-    @foreach($product_lists as $key=>$product)
+@php
+    $modalProducts = collect($product_lists);
+    if(isset($categories)) {
+        foreach($categories as $cat) {
+            $catProds = \App\Models\Product::where('status', 'active')
+                ->where('cat_id', $cat->id)
+                ->whereNull('deleted_at')
+                ->where('is_featured', 1)
+                ->limit(8)
+                ->get();
+            $modalProducts = $modalProducts->concat($catProds);
+        }
+    }
+    $uniqueModalProducts = $modalProducts->unique('id');
+@endphp
+
+@if($uniqueModalProducts && count($uniqueModalProducts) > 0)
+    @foreach($uniqueModalProducts as $key=>$product)
+        @php
+            $m_sizeData = null;
+            $m_productPrice = 0;
+            if(!empty($product->size)){
+                $m_decoded = json_decode($product->size, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($m_decoded) && isset($m_decoded['price']) && is_array($m_decoded['price']) && count($m_decoded['price']) > 0) {
+                    $m_sizeData = $m_decoded;
+                    $m_productPrice = floatval($m_decoded['price'][0] ?? 0);
+                }
+            }
+            if(!$m_productPrice && isset($product->price) && is_numeric($product->price)){
+                $m_productPrice = floatval($product->price);
+            }
+            $m_discount = isset($product->discount) && is_numeric($product->discount) ? floatval($product->discount) : 0;
+            $m_afterDiscount = ($m_discount > 0 && $m_productPrice > 0) ? ($m_productPrice - (($m_productPrice * $m_discount) / 100)) : $m_productPrice;
+        @endphp
         <div class="modal fade" id="{{$product->id}}" tabindex="-1" role="dialog">
                 <div class="modal-dialog" role="document">
                     <div class="modal-content">
@@ -318,11 +331,10 @@
                                             <div class="quickview-slider-active">
                                                 @php
                                                     $photo=explode(',',$product->photo);
-                                                // dd($photo);
                                                 @endphp
                                                 @foreach($photo as $data)
                                                     <div class="single-slider">
-                                                        <img src="{{asset('public/'.$data)}}" alt="{{asset('public/'.$data)}}">
+                                                        <img src="{{asset('public/'.$data)}}" alt="{{$product->title ?: $product->product_code}}">
                                                     </div>
                                                 @endforeach
                                             </div>
@@ -331,68 +343,53 @@
                                 </div>
                                 <div class="col-lg-6 col-md-12 col-sm-12 col-xs-12">
                                     <div class="quickview-content">
-                                        <h2>{{$product->title}}</h2>
+                                        <h2>{{$product->title ?: $product->product_code}}</h2>
+                                        @if($product->product_code)
+                                            <p class="text-muted small mb-2">Item Code: <strong>{{$product->product_code}}</strong></p>
+                                        @endif
                                         <div class="quickview-ratting-review">
-                                            <div class="quickview-ratting-wrap">
-                                                <div class="quickview-ratting">
-                                                    {{-- <i class="yellow fa fa-star"></i>
-                                                    <i class="yellow fa fa-star"></i>
-                                                    <i class="yellow fa fa-star"></i>
-                                                    <i class="yellow fa fa-star"></i>
-                                                    <i class="fa fa-star"></i> --}}
-                                                    @php
-                                                        $rate=DB::table('product_reviews')->where('product_id',$product->id)->avg('rate');
-                                                        $rate_count=DB::table('product_reviews')->where('product_id',$product->id)->count();
-                                                    @endphp
-                                                    @for($i=1; $i<=5; $i++)
-                                                        @if($rate>=$i)
-                                                            <i class="yellow fa fa-star"></i>
-                                                        @else
-                                                        <i class="fa fa-star"></i>
-                                                        @endif
-                                                    @endfor
-                                                </div>
-                                                <a href="#"> ({{$rate_count}} customer review)</a>
+                                            <div class="quickview-ratting">
+                                                @php
+                                                    $rate=DB::table('product_reviews')->where('product_id',$product->id)->avg('rate');
+                                                    $rate_count=DB::table('product_reviews')->where('product_id',$product->id)->count();
+                                                @endphp
+                                                @for($i=1; $i<=5; $i++)
+                                                    @if($rate>=$i)
+                                                        <i class="yellow fa fa-star"></i>
+                                                    @else
+                                                        <i class="fa fa-star text-muted"></i>
+                                                    @endif
+                                                @endfor
                                             </div>
-                                            <div class="quickview-stock">
-                                                @if($product->stock >0)
-                                                <span><i class="fa fa-check-circle-o"></i> {{$product->stock}} in stock</span>
-                                                @else
-                                                <span><i class="fa fa-times-circle-o text-danger"></i> {{$product->stock}} out stock</span>
-                                                @endif
-                                            </div>
+                                            <a href="#"> ({{$rate_count}} customer review)</a>
                                         </div>
-                                        @php
-                                            $after_discount=($product->price-($product->price*$product->discount)/100);
-                                        @endphp
-                                        <h3><small><del class="text-muted">${{number_format($product->price,2)}}</del></small>    ${{number_format($after_discount,2)}}  </h3>
+                                        <div class="quickview-stock">
+                                            @if($product->stock >0)
+                                            <span><i class="fa fa-check-circle-o"></i> {{$product->stock}} in stock</span>
+                                            @else
+                                            <span><i class="fa fa-times-circle-o text-danger"></i> {{$product->stock}} out stock</span>
+                                            @endif
+                                        </div>
+                                        <h3>
+                                            @if($m_discount > 0 && $m_productPrice > $m_afterDiscount)
+                                                <small><del class="text-muted">₹{{number_format($m_productPrice,2)}}</del></small>
+                                            @endif
+                                            ₹{{number_format($m_afterDiscount,2)}}
+                                        </h3>
                                         <div class="quickview-peragraph">
                                             <p>{!! html_entity_decode($product->summary) !!}</p>
                                         </div>
-                                        @if($product->size)
+                                        @if(!empty($m_sizeData) && isset($m_sizeData['size']) && count($m_sizeData['size']) > 0)
                                             <div class="size">
                                                 <div class="row">
-                                                    <div class="col-lg-6 col-12">
-                                                        <h5 class="title">Size</h5>
-                                                        <select>
-                                                            @php
-                                                            $sizes=explode(',',$product->size);
-                                                            // dd($sizes);
-                                                            @endphp
-                                                            @foreach($sizes as $size)
-                                                                <option>{{$size}}</option>
+                                                    <div class="col-lg-12 col-12">
+                                                        <h5 class="title">Available Sizes</h5>
+                                                        <div class="d-flex flex-wrap gap-2 mt-1">
+                                                            @foreach($m_sizeData['size'] as $size)
+                                                                <span class="badge badge-light border mr-1 px-2 py-1">{{$size}}</span>
                                                             @endforeach
-                                                        </select>
+                                                        </div>
                                                     </div>
-                                                    {{-- <div class="col-lg-6 col-12">
-                                                        <h5 class="title">Color</h5>
-                                                        <select>
-                                                            <option selected="selected">orange</option>
-                                                            <option>purple</option>
-                                                            <option>black</option>
-                                                            <option>pink</option>
-                                                        </select>
-                                                    </div> --}}
                                                 </div>
                                             </div>
                                         @endif
@@ -418,7 +415,7 @@
                                             </div>
                                             <div class="add-to-cart">
                                                 <button type="submit" class="btn">Add to cart</button>
-                                                <a href="{{route('add-to-wishlist',$product->slug)}}" class="btn min"><i class="ti-heart"></i></a>
+                                                <a href="{{route('add-to-wishlist',$product->slug)}}" class="btn min" title="Wishlist"><i class="ti-heart"></i></a>
                                             </div>
                                         </form>
                                         <div class="default-social">
@@ -444,9 +441,6 @@
         color:black;
         }
 
-        /*#Gslider .carousel-inner{*/
-        /*height: 550px;*/
-        /*}*/
         #Gslider .carousel-inner img{
             width: 100% !important;
             opacity: .8;
@@ -472,42 +466,321 @@
         #Gslider .carousel-indicators {
         bottom: 70px;
         }
-        /*@media only screen and (max-width: 2600px){*/
-        /*    #Gslider .carousel-inner{*/
-        /*        height: 1050px;*/
-        /*    }*/
-        /*}*/
-        /*@media only screen and (max-width: 1400px){*/
-        /*    #Gslider .carousel-inner{*/
-        /*        height: 550px;*/
-        /*    }*/
-        /*}*/
         
         .nav-tabs {
-    border-bottom: none;
-}
+            border-bottom: none;
+        }
 
-.nav-tabs .nav-item {
-    margin-right: 5px;
-}
+        .nav-tabs .nav-item {
+            margin-right: 5px;
+        }
 
-.nav-tabs .filter-btn {
-    background: white;
-    color: black;
-    font-weight: bold;
-    border: 1px solid #ddd;
-    padding: 10px 20px;
-    border-radius: 0;
-    transition: all 0.3s ease-in-out;
-}
+        .nav-tabs .filter-btn {
+            background: white;
+            color: black;
+            font-weight: bold;
+            border: 1px solid #ddd;
+            padding: 10px 20px;
+            border-radius: 0;
+            transition: all 0.3s ease-in-out;
+        }
 
-/* Active Tab */
-.nav-tabs .filter-btn.active, 
-.nav-tabs .filter-btn:hover {
-    background: black !important;
-    color: white !important;
-}
+        /* Active Tab */
+        .nav-tabs .filter-btn.active, 
+        .nav-tabs .filter-btn:hover {
+            background: black !important;
+            color: white !important;
+        }
 
+        /* ==========================================================
+           MODERN CUSTOM PRODUCT CARD STYLING
+           ========================================================== */
+        .custom-product-card {
+            background: #ffffff;
+            border: 1px solid #e8edf2;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            position: relative;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            margin-bottom: 28px;
+        }
+
+        .custom-product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.09);
+            border-color: #cbd5e1;
+        }
+
+        .card-media-wrap {
+            position: relative;
+            background: #f8fafc;
+            height: 310px;
+            width: 100%;
+            overflow: hidden;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .card-img-link {
+            display: block;
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            position: relative;
+        }
+
+        .card-default-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            display: block;
+            transition: transform 0.4s ease, opacity 0.3s ease;
+        }
+
+        .card-hover-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            opacity: 0;
+            display: block;
+            transition: opacity 0.35s ease, transform 0.4s ease;
+        }
+
+        .custom-product-card:hover .card-default-img {
+            transform: scale(1.05);
+        }
+
+        .custom-product-card:hover .card-hover-img {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+        /* Left Badges on Media */
+        .card-left-badges {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 3;
+        }
+
+        .card-badge-tag {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .card-badge-tag.badge-hot {
+            background: #e11d48;
+            color: #ffffff;
+        }
+
+        .card-badge-tag.badge-hot i {
+            font-size: 10px;
+        }
+
+        .card-badge-tag.badge-new {
+            background: #0284c7;
+            color: #ffffff;
+        }
+
+        .card-badge-tag.badge-discount {
+            background: #f7941d;
+            color: #ffffff;
+        }
+
+        .card-action-buttons {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 3;
+            opacity: 0;
+            transform: translateX(8px);
+            transition: all 0.25s ease;
+        }
+
+        .custom-product-card:hover .card-action-buttons {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .card-btn-action {
+            width: 34px;
+            height: 34px;
+            background: #ffffff;
+            color: #333333;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+            font-size: 13px;
+            transition: all 0.2s ease;
+            text-decoration: none !important;
+        }
+
+        .card-btn-action:hover {
+            background: #333333;
+            color: #ffffff !important;
+            transform: scale(1.08);
+        }
+
+        .card-content-wrap {
+            padding: 14px 16px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .card-meta-line {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .card-cat-name {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 50%;
+        }
+
+        .card-top-price {
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+
+        .card-top-price .price-val {
+            font-size: 15.5px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .card-top-price .price-old {
+            font-size: 11.5px;
+            color: #94a3b8;
+            text-decoration: line-through;
+        }
+
+        .card-item-title {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 2px 0 10px 0;
+            min-height: 38px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-item-title a {
+            color: #1e293b;
+            transition: color 0.2s ease;
+            text-decoration: none !important;
+        }
+
+        .card-item-title a:hover {
+            color: #f7941d;
+        }
+
+        .card-cta-container {
+            margin-top: auto;
+        }
+
+        .btn-card-details {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            padding: 8px 12px;
+            background: #111827;
+            color: #ffffff !important;
+            border-radius: 6px;
+            font-size: 12.5px;
+            font-weight: 600;
+            text-decoration: none !important;
+            transition: all 0.25s ease;
+        }
+
+        .btn-card-details:hover {
+            background: #f7941d;
+            box-shadow: 0 4px 12px rgba(247, 148, 29, 0.35);
+        }
+
+        .btn-card-details i {
+            font-size: 11px;
+            transition: transform 0.2s ease;
+        }
+
+        .btn-card-details:hover i {
+            transform: translateX(4px);
+        }
+
+        @media (max-width: 991px) {
+            .card-media-wrap {
+                height: 260px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .card-media-wrap {
+                height: 210px;
+            }
+            .card-content-wrap {
+                padding: 10px;
+            }
+            .card-item-title {
+                font-size: 13px;
+                min-height: 34px;
+            }
+            .price-val {
+                font-size: 15px;
+            }
+            .card-action-buttons {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            .card-btn-action {
+                width: 28px;
+                height: 28px;
+                font-size: 11px;
+            }
+            .btn-card-details {
+                font-size: 11.5px;
+                padding: 6px 8px;
+            }
+        }
     </style>
 @endpush
 
